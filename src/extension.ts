@@ -41,7 +41,9 @@ interface ChangedFile {
 interface ReviewerConfig {
   maxFileSize: number;
   excludePatterns: string[];
+  aiProvider: string;
   aiModel: string;
+  openRouterModel: string;
   customPrompt?: string;
   outputDirectory: string;
   autoOpenReports: boolean;
@@ -126,7 +128,9 @@ function getConfig(): ReviewerConfig {
       "**/yarn.lock",
       "**/*.log",
     ],
+    aiProvider: config.get<string>("aiProvider") || "gemini",
     aiModel: config.get<string>("aiModel") || "gemini-3-pro-preview",
+    openRouterModel: config.get<string>("openRouterModel") || "openai/gpt-4o",
     customPrompt: config.get<string>("customPrompt"),
     outputDirectory: config.get<string>("outputDirectory") || "",
     autoOpenReports: config.get<boolean>("autoOpenReports") !== false,
@@ -533,35 +537,42 @@ async function getDiffOptions(workspacePath: string): Promise<DiffOptions | null
 // API KEY MANAGEMENT (SECURE)
 // ============================================================================
 
-async function getApiKey(context: vscode.ExtensionContext): Promise<string | null> {
+async function getApiKey(context: vscode.ExtensionContext, provider: string): Promise<string | null> {
   try {
+    const keyName = provider === "openrouter" ? "reviewer.openRouterApiKey" : "reviewer.geminiApiKey";
+    const providerName = provider === "openrouter" ? "OpenRouter" : "Gemini";
+    const placeholder = provider === "openrouter" ? "sk-or-v1-..." : "AIza...";
+    const apiUrl = provider === "openrouter"
+      ? "https://openrouter.ai/settings/keys"
+      : "https://makersuite.google.com/app/apikey";
+
     // Try to get from SecretStorage
-    let apiKey = await context.secrets.get("reviewer.geminiApiKey");
+    let apiKey = await context.secrets.get(keyName);
 
     if (!apiKey) {
       // Prompt user for API key
       apiKey = await vscode.window.showInputBox({
-        prompt: "Enter your Gemini API Key",
-        placeHolder: "AIza...",
+        prompt: `Enter your ${providerName} API Key`,
+        placeHolder: placeholder,
         password: true,
         ignoreFocusOut: true,
       });
 
       if (!apiKey) {
         vscode.window.showErrorMessage(
-          "API Key is required for AI Review. Get your key at: https://makersuite.google.com/app/apikey",
+          `API Key is required for AI Review. Get your ${providerName} key at: ${apiUrl}`,
           "Get API Key"
         ).then(action => {
           if (action === "Get API Key") {
-            vscode.env.openExternal(vscode.Uri.parse("https://makersuite.google.com/app/apikey"));
+            vscode.env.openExternal(vscode.Uri.parse(apiUrl));
           }
         });
         return null;
       }
 
       // Save to SecretStorage
-      await context.secrets.store("reviewer.geminiApiKey", apiKey);
-      log("API key stored securely");
+      await context.secrets.store(keyName, apiKey);
+      log(`${providerName} API key stored securely`);
     }
 
     return apiKey;
@@ -582,6 +593,57 @@ async function getApiKey(context: vscode.ExtensionContext): Promise<string | nul
 // ============================================================================
 // AI OPERATIONS
 // ============================================================================
+
+async function callOpenRouterAPI(
+  apiKey: string,
+  prompt: string,
+  model: string
+): Promise<string> {
+  try {
+    log(`Calling OpenRouter API with model: ${model}`);
+
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://github.com/reviewer-vscode-extension",
+        "X-Title": "Reviewer VSCode Extension"
+      },
+      body: JSON.stringify({
+        model: model,
+        messages: [
+          {
+            role: "user",
+            content: prompt
+          }
+        ]
+      })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.text();
+      throw new Error(`OpenRouter API error: ${response.status} - ${errorData}`);
+    }
+
+    const data = await response.json();
+    log("OpenRouter API call successful");
+    return data.choices?.[0]?.message?.content || "No response generated.";
+  } catch (error: any) {
+    log(`OpenRouter API Error: ${error.message}`, "ERROR");
+
+    let userMessage = "Failed to get AI review from OpenRouter.";
+    if (error.message?.includes("401")) {
+      userMessage = "Invalid OpenRouter API key. Please check your key and try again.";
+    } else if (error.message?.includes("429")) {
+      userMessage = "API rate limit exceeded. Please try again later.";
+    } else if (error.message?.includes("404")) {
+      userMessage = `Model '${model}' not found on OpenRouter. Please check the model name.`;
+    }
+
+    throw new Error(userMessage);
+  }
+}
 
 async function callGeminiAPI(
   apiKey: string,
@@ -900,8 +962,12 @@ async function generateAIReview(context: vscode.ExtensionContext) {
     return;
   }
 
-  // Get API key
-  const apiKey = await getApiKey(context);
+  // Get configuration to determine provider
+  const config = getConfig();
+  const provider = config.aiProvider;
+
+  // Get API key for selected provider
+  const apiKey = await getApiKey(context, provider);
   if (!apiKey) {
     return;
   }
@@ -912,8 +978,6 @@ async function generateAIReview(context: vscode.ExtensionContext) {
     log("AI review cancelled by user");
     return;
   }
-
-  const config = getConfig();
 
   // Show progress
   await vscode.window.withProgress(
@@ -1007,8 +1071,15 @@ async function generateAIReview(context: vscode.ExtensionContext) {
         const prompt = config.customPrompt || getDefaultReviewPrompt(options.currentBranch);
         const fullPrompt = `${prompt}\n\n${codeContent}`;
 
-        // Call AI
-        const aiResponse = await callGeminiAPI(apiKey, fullPrompt, config.aiModel);
+        // Call appropriate AI API based on provider
+        let aiResponse: string;
+        if (provider === "openrouter") {
+          log(`Using OpenRouter with model: ${config.openRouterModel}`);
+          aiResponse = await callOpenRouterAPI(apiKey, fullPrompt, config.openRouterModel);
+        } else {
+          log(`Using Gemini with model: ${config.aiModel}`);
+          aiResponse = await callGeminiAPI(apiKey, fullPrompt, config.aiModel);
+        }
 
         if (token.isCancellationRequested) {
           log("AI review cancelled by user");
@@ -1026,12 +1097,16 @@ async function generateAIReview(context: vscode.ExtensionContext) {
         );
 
         // Build report
+        const aiProviderText = provider === "openrouter"
+          ? `OpenRouter (${config.openRouterModel})`
+          : `Gemini (${config.aiModel})`;
+
         const reportContent = `# AI Code Review Report
 
 **Generated on:** ${new Date().toLocaleString()}
 **Branch:** ${options.currentBranch}
 **Comparison:** ${options.mode.desc}
-**AI Model:** ${config.aiModel}
+**AI Provider:** ${aiProviderText}
 
 ---
 
@@ -1039,7 +1114,7 @@ ${aiResponse}
 
 ---
 
-*Report generated by Reviewer Extension using Gemini AI*
+*Report generated by Reviewer Extension using ${provider === "openrouter" ? "OpenRouter" : "Gemini"} AI*
 `;
 
         // Write report
@@ -1086,7 +1161,7 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(outputChannel);
 
   log("=== Reviewer Extension Activated ===");
-  log(`Version: 0.0.1`);
+  log(`Version: 0.0.2`);
   log(`Workspace: ${vscode.workspace.workspaceFolders?.[0]?.uri?.fsPath || "None"}`);
 
   // Create status bar button
@@ -1117,9 +1192,11 @@ export function activate(context: vscode.ExtensionContext) {
   const clearApiKeyCommand = vscode.commands.registerCommand(
     "reviewer.clearApiKey",
     async () => {
+      // Clear both API keys
       await context.secrets.delete("reviewer.geminiApiKey");
-      vscode.window.showInformationMessage("API key cleared successfully");
-      log("API key cleared by user");
+      await context.secrets.delete("reviewer.openRouterApiKey");
+      vscode.window.showInformationMessage("All API keys cleared successfully");
+      log("All API keys cleared by user");
     }
   );
 

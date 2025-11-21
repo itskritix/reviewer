@@ -3,7 +3,7 @@
 ![Version](https://img.shields.io/badge/version-0.0.1-blue.svg)
 ![VS Code](https://img.shields.io/badge/VS%20Code-1.85.0+-green.svg)
 
-A powerful VS Code extension that generates comprehensive diff reports and AI-powered code reviews using Google Gemini.
+A powerful VS Code extension that generates comprehensive diff reports and AI-powered code reviews using Google Gemini or OpenRouter (supporting GPT-4, Claude, and more).
 
 ## Features
 
@@ -15,7 +15,9 @@ Generate detailed markdown reports of your Git changes with:
 - Smart filtering (excludes binaries, large files, node_modules)
 
 ### 🤖 AI-Powered Code Reviews
-Get intelligent code reviews from Google Gemini AI:
+Get intelligent code reviews from multiple AI providers:
+- **Google Gemini** - Fast and efficient analysis
+- **OpenRouter** - Access to GPT-4, Claude, and 100+ models
 - Analyzes bugs, security issues, and performance problems
 - Provides actionable feedback with line numbers
 - Customizable review prompts
@@ -52,11 +54,19 @@ code .
 
 ## Setup
 
-### Get a Gemini API Key
+### Get API Keys
+
+#### For Google Gemini:
 1. Visit [Google AI Studio](https://makersuite.google.com/app/apikey)
 2. Create a new API key
 3. The extension will prompt you for it on first use
-4. Your key is stored securely using VS Code's SecretStorage
+
+#### For OpenRouter:
+1. Visit [OpenRouter](https://openrouter.ai/settings/keys)
+2. Create an account and get an API key
+3. The extension will prompt you for it when you select OpenRouter
+
+Your keys are stored securely using VS Code's SecretStorage
 
 ## Usage
 
@@ -74,7 +84,7 @@ code .
 Access via Command Palette (`Cmd+Shift+P` / `Ctrl+Shift+P`):
 - `Reviewer: Generate Comprehensive Diff`
 - `Reviewer: Generate AI Review`
-- `Reviewer: Clear Gemini API Key`
+- `Reviewer: Clear API Keys`
 - `Reviewer: Show Logs`
 
 ## Configuration
@@ -85,7 +95,9 @@ Access via Command Palette (`Cmd+Shift+P` / `Ctrl+Shift+P`):
 |---------|------|---------|-------------|
 | `reviewer.maxFileSize` | number | 1048576 (1MB) | Maximum file size in bytes to include in reports |
 | `reviewer.excludePatterns` | array | `["**/node_modules/**", "**/package-lock.json", "**/yarn.lock", "**/*.log"]` | Glob patterns to exclude from diffs |
-| `reviewer.aiModel` | string | `gemini-1.5-flash` | Gemini AI model (`gemini-1.5-pro`, `gemini-1.5-flash`, `gemini-2.0-flash-exp`) |
+| `reviewer.aiProvider` | string | `gemini` | AI provider to use (`gemini`, `openrouter`) |
+| `reviewer.aiModel` | string | `gemini-3-pro-preview` | Gemini AI model (`gemini-3-pro-preview`, `gemini-1.5-pro`, `gemini-1.5-flash`, `gemini-2.0-flash-exp`) |
+| `reviewer.openRouterModel` | string | `openai/gpt-4o` | OpenRouter model (e.g., `openai/gpt-4o`, `anthropic/claude-3.5-sonnet`, `google/gemini-pro-1.5`) |
 | `reviewer.customPrompt` | string | `""` | Custom AI review prompt (leave empty for default) |
 | `reviewer.outputDirectory` | string | `""` | Custom directory for reports (relative to workspace root) |
 | `reviewer.autoOpenReports` | boolean | `true` | Automatically open reports after generation |
@@ -101,7 +113,8 @@ Access via Command Palette (`Cmd+Shift+P` / `Ctrl+Shift+P`):
     "**/*.min.js",
     "**/package-lock.json"
   ],
-  "reviewer.aiModel": "gemini-1.5-pro",
+  "reviewer.aiProvider": "openrouter",
+  "reviewer.openRouterModel": "anthropic/claude-3.5-sonnet",
   "reviewer.outputDirectory": "code-reviews",
   "reviewer.autoOpenReports": true
 }
@@ -167,7 +180,7 @@ Create your own review criteria:
 **Generated on:** [timestamp]
 **Branch:** [current-branch]
 **Comparison:** [comparison-mode]
-**AI Model:** [model-name]
+**AI Provider:** [provider-name (model)]
 
 [AI-generated review with:]
 - Critical Issues
@@ -201,8 +214,8 @@ Syntax highlighting for 30+ languages:
 
 ### API Key Issues
 ```bash
-# Clear your stored API key
-Cmd+Shift+P → "Reviewer: Clear Gemini API Key"
+# Clear your stored API keys
+Cmd+Shift+P → "Reviewer: Clear API Keys"
 ```
 
 ### View Logs
@@ -241,6 +254,12 @@ Cmd+Shift+P → "Reviewer: Show Logs"
 
 ## Changelog
 
+### v0.0.2 (2025-01-21)
+- Added OpenRouter support for 100+ AI models
+- Support for GPT-4, Claude, and other models via OpenRouter
+- Multi-provider API key management
+- Enhanced error handling for different providers
+
 ### v0.0.1 (2025-01-21)
 - Initial release
 - Comprehensive diff reports
@@ -269,6 +288,7 @@ ISC
 - 📧 Report issues on GitHub
 - 💬 Check logs with `Reviewer: Show Logs`
 - 📖 Read the [Gemini AI Documentation](https://ai.google.dev/docs)
+- 📖 Read the [OpenRouter Documentation](https://openrouter.ai/docs)
 
 ---
 

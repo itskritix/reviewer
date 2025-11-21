@@ -1,8 +1,8 @@
 {
   "name": "reviewer",
   "displayName": "Reviewer - AI Code Review Assistant",
-  "description": "Generate comprehensive diff reports and AI-powered code reviews with Google Gemini",
-  "version": "0.0.1",
+  "description": "Generate comprehensive diff reports and AI-powered code reviews with Google Gemini or OpenRouter",
+  "version": "0.0.2",
   "publisher": "reviewer",
   "engines": {
     "vscode": "^1.85.0"
@@ -31,7 +31,7 @@
       },
       {
         "command": "reviewer.clearApiKey",
-        "title": "Clear Gemini API Key",
+        "title": "Clear API Keys",
         "category": "Reviewer"
       },
       {
@@ -102,6 +102,15 @@
             "type": "string"
           }
         },
+        "reviewer.aiProvider": {
+          "type": "string",
+          "enum": [
+            "gemini",
+            "openrouter"
+          ],
+          "default": "gemini",
+          "description": "AI provider to use for code reviews"
+        },
         "reviewer.aiModel": {
           "type": "string",
           "enum": [
@@ -112,6 +121,11 @@
           ],
           "default": "gemini-3-pro-preview",
           "description": "Gemini AI model to use for code reviews"
+        },
+        "reviewer.openRouterModel": {
+          "type": "string",
+          "default": "openai/gpt-4o",
+          "description": "OpenRouter model to use (e.g., openai/gpt-4o, anthropic/claude-3.5-sonnet, google/gemini-pro-1.5)"
         },
         "reviewer.customPrompt": {
           "type": "string",
@@ -156,6 +170,7 @@
     "typescript": "^5.3.3"
   },
   "dependencies": {
-    "@google/genai": "^1.30.0"
+    "@google/genai": "^1.30.0",
+    "node-fetch": "^3.3.2"
   }
 }
