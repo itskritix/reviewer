@@ -2,15 +2,6 @@ import * as vscode from "vscode";
 import * as fs from "fs";
 import * as path from "path";
 
-// Available services for deployment
-const AVAILABLE_SERVICES = [
-  { label: "api", description: "API Service" },
-  { label: "backend_sqs", description: "Backend SQS Service" },
-  { label: "backend_cron", description: "Backend Cron Service" },
-  { label: "ui", description: "UI Service" },
-  { label: "patientportal", description: "Patient Portal Service" },
-];
-
 // Comparison modes for comprehensive diff
 const COMPARISON_MODES = [
   {
@@ -56,53 +47,6 @@ const COMPARISON_MODES = [
     desc: "changes compared to origin/master",
   },
 ];
-
-// Function to handle service selection and deployment
-async function deployWithServiceSelection(environment: string) {
-  const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri?.fsPath;
-  if (!workspacePath) {
-    vscode.window.showErrorMessage("No workspace folder found");
-    return;
-  }
-
-  // Show multi-select quick pick for services
-  const selectedServices = await vscode.window.showQuickPick(
-    AVAILABLE_SERVICES,
-    {
-      canPickMany: true,
-      placeHolder: `Select services to deploy to ${environment.toUpperCase()}`,
-      title: `Deploy to ${environment.toUpperCase()}`,
-    }
-  );
-
-  if (!selectedServices || selectedServices.length === 0) {
-    vscode.window.showInformationMessage("No services selected for deployment");
-    return;
-  }
-
-  const terminal = vscode.window.createTerminal({
-    name: `Deploy ${environment.toUpperCase()}`,
-    cwd: workspacePath,
-  });
-
-  terminal.show();
-
-  // Checkout to release/uat-2.0 branch and pull
-  terminal.sendText("git checkout release/uat-2.0");
-  terminal.sendText("git pull");
-
-  // Deploy all selected services in a single command
-  const serviceNames = selectedServices.map((service) => service.label);
-  const deployCommands = serviceNames.map(
-    (serviceName) => `./deploy.sh ${environment} ${serviceName}`
-  );
-  const combinedCommand = `cd scripts && ${deployCommands.join(" || ")}`;
-  terminal.sendText(combinedCommand);
-
-  vscode.window.showInformationMessage(
-    `Deploying ${serviceNames.join(", ")} to ${environment.toUpperCase()}`
-  );
-}
 
 // Function to get file extension for syntax highlighting
 function getFileExtension(filePath: string): string {
@@ -507,45 +451,6 @@ ${changedFiles.join("\n")}
 export function activate(context: vscode.ExtensionContext) {
   console.log("Deploy extension is now active");
 
-  // Create status bar items
-  // QA Button - Commented out/disabled for now
-  // const qaButton = vscode.window.createStatusBarItem(
-  //   vscode.StatusBarAlignment.Left,
-  //   100
-  // );
-  // qaButton.text = "$(rocket) PR to QA";
-  // qaButton.command = "reviewer.deployToQA";
-  // qaButton.tooltip = "PR current branch to QA";
-  // qaButton.show();
-
-  const uatButton = vscode.window.createStatusBarItem(
-    vscode.StatusBarAlignment.Left,
-    99
-  );
-  uatButton.text = "$(rocket) PR to UAT";
-  uatButton.command = "reviewer.deployToUAT";
-  uatButton.tooltip = "PR current branch to UAT";
-  uatButton.show();
-
-  // // New Deploy buttons
-  // const deployQAButton = vscode.window.createStatusBarItem(
-  //     vscode.StatusBarAlignment.Left,
-  //     98
-  // );
-  // deployQAButton.text = "$(cloud-upload) Deploy to QA";
-  // deployQAButton.command = "reviewer.deployServicesToQA";
-  // deployQAButton.tooltip = "Deploy selected services to QA";
-  // deployQAButton.show();
-
-  const deployUATButton = vscode.window.createStatusBarItem(
-    vscode.StatusBarAlignment.Left,
-    97
-  );
-  deployUATButton.text = "$(cloud-upload) Deploy to UAT";
-  deployUATButton.command = "reviewer.deployServicesToUAT";
-  deployUATButton.tooltip = "Deploy selected services to UAT";
-  deployUATButton.show();
-
   // Comprehensive Diff button
   const comprehensiveDiffButton = vscode.window.createStatusBarItem(
     vscode.StatusBarAlignment.Left,
@@ -557,66 +462,6 @@ export function activate(context: vscode.ExtensionContext) {
     "Generate comprehensive diff report with full file contents";
   comprehensiveDiffButton.show();
 
-  // Register commands
-  // QA Command - Commented out/disabled for now
-  // let deployToQA = vscode.commands.registerCommand(
-  //     "reviewer.deployToQA",
-  //     async () => {
-  //         const workspacePath =
-  //             vscode.workspace.workspaceFolders?.[0]?.uri?.fsPath;
-  //         if (!workspacePath) {
-  //             vscode.window.showErrorMessage("No workspace folder found");
-  //             return;
-  //         }
-
-  //         const terminal = vscode.window.createTerminal({
-  //             name: "Deploy",
-  //             cwd: workspacePath,
-  //         });
-
-  //         terminal.show();
-  //         terminal.sendText(
-  //             "chmod +x ./deploy_feature.sh && ./deploy_feature.sh qa"
-  //         );
-  //     }
-  // );
-
-  let deployToUAT = vscode.commands.registerCommand(
-    "reviewer.deployToUAT",
-    async () => {
-      const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri?.fsPath;
-      if (!workspacePath) {
-        vscode.window.showErrorMessage("No workspace folder found");
-        return;
-      }
-
-      const terminal = vscode.window.createTerminal({
-        name: "Deploy",
-        cwd: workspacePath,
-      });
-
-      terminal.show();
-      terminal.sendText(
-        "chmod +x ./deploy_feature.sh && ./deploy_feature.sh uat"
-      );
-    }
-  );
-
-  // New deployment commands with service selection
-  let deployServicesToQA = vscode.commands.registerCommand(
-    "reviewer.deployServicesToQA",
-    async () => {
-      await deployWithServiceSelection("qa");
-    }
-  );
-
-  let deployServicesToUAT = vscode.commands.registerCommand(
-    "reviewer.deployServicesToUAT",
-    async () => {
-      await deployWithServiceSelection("uat");
-    }
-  );
-
   // Register comprehensive diff command
   let generateComprehensiveDiffCommand = vscode.commands.registerCommand(
     "reviewer.generateComprehensiveDiff",
@@ -625,32 +470,8 @@ export function activate(context: vscode.ExtensionContext) {
     }
   );
 
-  // Add buttons to Source Control view
-  const scmProvider = vscode.scm.createSourceControl(
-    "reviewer",
-    "Reviewer"
-  );
-
-  // Add deployment status to Source Control view
-  const deploymentStatus = vscode.window.createStatusBarItem(
-    vscode.StatusBarAlignment.Left,
-    98
-  );
-  deploymentStatus.text = "$(git-branch) Ready to Deploy";
-  deploymentStatus.show();
-
-  // context.subscriptions.push(qaButton); // Commented out
-  context.subscriptions.push(uatButton);
-  // context.subscriptions.push(deployQAButton);
-  context.subscriptions.push(deployUATButton);
   context.subscriptions.push(comprehensiveDiffButton);
-  // context.subscriptions.push(deployToQA); // Commented out
-  context.subscriptions.push(deployToUAT);
-  context.subscriptions.push(deployServicesToQA);
-  context.subscriptions.push(deployServicesToUAT);
   context.subscriptions.push(generateComprehensiveDiffCommand);
-  context.subscriptions.push(scmProvider);
-  context.subscriptions.push(deploymentStatus);
 }
 
 export function deactivate() {

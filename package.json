@@ -18,18 +18,6 @@
   "contributes": {
     "commands": [
       {
-        "command": "reviewer.deployToUAT",
-        "title": "PR to UAT",
-        "category": "Reviewer",
-        "icon": "$(rocket)"
-      },
-      {
-        "command": "reviewer.deployServicesToUAT",
-        "title": "Deploy to UAT",
-        "category": "Reviewer",
-        "icon": "$(cloud-upload)"
-      },
-      {
         "command": "reviewer.generateComprehensiveDiff",
         "title": "Generate Comprehensive Diff",
         "category": "Reviewer",
@@ -39,32 +27,12 @@
     "menus": {
       "scm/title": [
         {
-          "command": "reviewer.deployToUAT",
-          "group": "navigation",
-          "when": "scmProvider == git"
-        },
-        {
-          "command": "reviewer.deployServicesToUAT",
-          "group": "navigation",
-          "when": "scmProvider == git"
-        },
-        {
           "command": "reviewer.generateComprehensiveDiff",
           "group": "navigation",
           "when": "scmProvider == git"
         }
       ],
       "view/title": [
-        {
-          "command": "reviewer.deployToUAT",
-          "group": "navigation",
-          "when": "view == workbench.scm"
-        },
-        {
-          "command": "reviewer.deployServicesToUAT",
-          "group": "navigation",
-          "when": "view == workbench.scm"
-        },
         {
           "command": "reviewer.generateComprehensiveDiff",
           "group": "navigation",
