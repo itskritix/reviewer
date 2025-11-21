@@ -55,6 +55,16 @@
           "when": "view == workbench.scm"
         }
       ]
+    },
+    "configuration": {
+      "title": "Reviewer Deployment Tools",
+      "properties": {
+        "reviewer.geminiApiKey": {
+          "type": "string",
+          "default": "",
+          "description": "API Key for Gemini AI Review"
+        }
+      }
     }
   },
   "scripts": {

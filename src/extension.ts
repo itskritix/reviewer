@@ -601,6 +601,9 @@ async function generateAIReview() {
       vscode.window.showErrorMessage("API Key is required for AI Review");
       return;
     }
+
+    // Save API Key to configuration
+    await vscode.workspace.getConfiguration("reviewer").update("geminiApiKey", apiKey, vscode.ConfigurationTarget.Global);
   }
 
   // Show progress
