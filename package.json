@@ -22,6 +22,12 @@
         "title": "Generate Comprehensive Diff",
         "category": "Reviewer",
         "icon": "$(diff)"
+      },
+      {
+        "command": "reviewer.generateAIReview",
+        "title": "Generate AI Review",
+        "category": "Reviewer",
+        "icon": "$(hubot)"
       }
     ],
     "menus": {
@@ -30,11 +36,21 @@
           "command": "reviewer.generateComprehensiveDiff",
           "group": "navigation",
           "when": "scmProvider == git"
+        },
+        {
+          "command": "reviewer.generateAIReview",
+          "group": "navigation",
+          "when": "scmProvider == git"
         }
       ],
       "view/title": [
         {
           "command": "reviewer.generateComprehensiveDiff",
+          "group": "navigation",
+          "when": "view == workbench.scm"
+        },
+        {
+          "command": "reviewer.generateAIReview",
           "group": "navigation",
           "when": "view == workbench.scm"
         }
@@ -55,5 +71,10 @@
     "@types/node": "^20.10.5",
     "@types/vscode": "^1.85.0",
     "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "@cfworker/json-schema": "^4.1.1",
+    "@google/genai": "^1.30.0",
+    "@modelcontextprotocol/sdk": "^1.22.0"
   }
 }
