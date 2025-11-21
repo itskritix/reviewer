@@ -1,0 +1,91 @@
+{
+  "name": "reviewer-deploy",
+  "displayName": "Reviewer Deployment Tools",
+  "description": "Deployment tools",
+  "version": "0.0.1",
+  "publisher": "reviewer",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished",
+    "workspaceContains:**/.git"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "reviewer.deployToUAT",
+        "title": "PR to UAT",
+        "category": "Reviewer",
+        "icon": "$(rocket)"
+      },
+      {
+        "command": "reviewer.deployServicesToUAT",
+        "title": "Deploy to UAT",
+        "category": "Reviewer",
+        "icon": "$(cloud-upload)"
+      },
+      {
+        "command": "reviewer.generateComprehensiveDiff",
+        "title": "Generate Comprehensive Diff",
+        "category": "Reviewer",
+        "icon": "$(diff)"
+      }
+    ],
+    "menus": {
+      "scm/title": [
+        {
+          "command": "reviewer.deployToUAT",
+          "group": "navigation",
+          "when": "scmProvider == git"
+        },
+        {
+          "command": "reviewer.deployServicesToUAT",
+          "group": "navigation",
+          "when": "scmProvider == git"
+        },
+        {
+          "command": "reviewer.generateComprehensiveDiff",
+          "group": "navigation",
+          "when": "scmProvider == git"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "reviewer.deployToUAT",
+          "group": "navigation",
+          "when": "view == workbench.scm"
+        },
+        {
+          "command": "reviewer.deployServicesToUAT",
+          "group": "navigation",
+          "when": "view == workbench.scm"
+        },
+        {
+          "command": "reviewer.generateComprehensiveDiff",
+          "group": "navigation",
+          "when": "view == workbench.scm"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile",
+    "lint": "eslint src --ext ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/node": "^20.10.5",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.3.3"
+  }
+}
