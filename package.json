@@ -1,7 +1,7 @@
 {
-  "name": "reviewer-deploy",
-  "displayName": "Reviewer Deployment Tools",
-  "description": "Deployment tools",
+  "name": "reviewer",
+  "displayName": "Reviewer - AI Code Review Assistant",
+  "description": "Generate comprehensive diff reports and AI-powered code reviews with Google Gemini",
   "version": "0.0.1",
   "publisher": "reviewer",
   "engines": {
@@ -28,6 +28,16 @@
         "title": "Generate AI Review",
         "category": "Reviewer",
         "icon": "$(hubot)"
+      },
+      {
+        "command": "reviewer.clearApiKey",
+        "title": "Clear Gemini API Key",
+        "category": "Reviewer"
+      },
+      {
+        "command": "reviewer.showLogs",
+        "title": "Show Logs",
+        "category": "Reviewer"
       }
     ],
     "menus": {
@@ -56,13 +66,68 @@
         }
       ]
     },
+    "keybindings": [
+      {
+        "command": "reviewer.generateComprehensiveDiff",
+        "key": "ctrl+shift+d",
+        "mac": "cmd+shift+d",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "reviewer.generateAIReview",
+        "key": "ctrl+shift+r",
+        "mac": "cmd+shift+r",
+        "when": "editorTextFocus"
+      }
+    ],
     "configuration": {
-      "title": "Reviewer Deployment Tools",
+      "title": "Reviewer",
       "properties": {
-        "reviewer.geminiApiKey": {
+        "reviewer.maxFileSize": {
+          "type": "number",
+          "default": 1048576,
+          "description": "Maximum file size in bytes to include in reports (default: 1MB)",
+          "minimum": 1024
+        },
+        "reviewer.excludePatterns": {
+          "type": "array",
+          "default": [
+            "**/node_modules/**",
+            "**/package-lock.json",
+            "**/yarn.lock",
+            "**/*.log"
+          ],
+          "description": "Glob patterns to exclude from diffs and reviews",
+          "items": {
+            "type": "string"
+          }
+        },
+        "reviewer.aiModel": {
+          "type": "string",
+          "enum": [
+            "gemini-3-pro-preview",
+            "gemini-1.5-pro",
+            "gemini-1.5-flash",
+            "gemini-2.0-flash-exp"
+          ],
+          "default": "gemini-3-pro-preview",
+          "description": "Gemini AI model to use for code reviews"
+        },
+        "reviewer.customPrompt": {
           "type": "string",
           "default": "",
-          "description": "API Key for Gemini AI Review"
+          "description": "Custom AI review prompt (leave empty to use default)",
+          "editPresentation": "multilineText"
+        },
+        "reviewer.outputDirectory": {
+          "type": "string",
+          "default": "",
+          "description": "Custom directory for generated reports (relative to workspace root, leave empty for workspace root)"
+        },
+        "reviewer.autoOpenReports": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically open reports after generation"
         }
       }
     }
@@ -74,7 +139,15 @@
     "pretest": "npm run compile",
     "lint": "eslint src --ext ts"
   },
-  "keywords": [],
+  "keywords": [
+    "git",
+    "diff",
+    "review",
+    "ai",
+    "gemini",
+    "code-review",
+    "code-quality"
+  ],
   "author": "",
   "license": "ISC",
   "devDependencies": {
@@ -83,8 +156,6 @@
     "typescript": "^5.3.3"
   },
   "dependencies": {
-    "@cfworker/json-schema": "^4.1.1",
-    "@google/genai": "^1.30.0",
-    "@modelcontextprotocol/sdk": "^1.22.0"
+    "@google/genai": "^1.30.0"
   }
 }
