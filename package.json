@@ -16,6 +16,54 @@
   ],
   "main": "./out/extension.js",
   "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "reviewer",
+          "title": "AI Code Reviewer",
+          "icon": "resources/icons/reviewer.svg"
+        }
+      ]
+    },
+    "views": {
+      "reviewer": [
+        {
+          "id": "reviewer.quickActions",
+          "name": "Quick Actions",
+          "icon": "$(rocket)",
+          "contextualTitle": "Reviewer Quick Actions"
+        },
+        {
+          "id": "reviewer.dashboard",
+          "name": "Dashboard",
+          "icon": "$(dashboard)",
+          "contextualTitle": "Review Dashboard",
+          "visibility": "visible"
+        },
+        {
+          "id": "reviewer.history",
+          "name": "Review History",
+          "icon": "$(history)",
+          "contextualTitle": "Review History"
+        },
+        {
+          "id": "reviewer.configuration",
+          "name": "Configuration",
+          "icon": "$(settings-gear)",
+          "contextualTitle": "Reviewer Configuration"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "reviewer.quickActions",
+        "contents": "Welcome to AI Code Reviewer! 🚀\n\nGet started by generating your first review:\n[$(diff) Generate Comprehensive Diff](command:reviewer.generateComprehensiveDiff)\n[$(hubot) Generate AI Review](command:reviewer.generateAIReview)\n\nNo API key configured? [Set up API keys](command:reviewer.setupApiKeys)"
+      },
+      {
+        "view": "reviewer.history",
+        "contents": "No reviews yet.\n\n[Generate your first review](command:reviewer.generateAIReview)"
+      }
+    ],
     "commands": [
       {
         "command": "reviewer.generateComprehensiveDiff",
@@ -38,9 +86,80 @@
         "command": "reviewer.showLogs",
         "title": "Show Logs",
         "category": "Reviewer"
+      },
+      {
+        "command": "reviewer.refreshQuickActions",
+        "title": "Refresh Quick Actions",
+        "category": "Reviewer",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "reviewer.refreshDashboard",
+        "title": "Refresh Dashboard",
+        "category": "Reviewer",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "reviewer.refreshHistory",
+        "title": "Refresh History",
+        "category": "Reviewer",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "reviewer.setupApiKeys",
+        "title": "Setup API Keys",
+        "category": "Reviewer",
+        "icon": "$(key)"
+      },
+      {
+        "command": "reviewer.openReport",
+        "title": "Open Report",
+        "category": "Reviewer",
+        "icon": "$(open-preview)"
+      },
+      {
+        "command": "reviewer.deleteReport",
+        "title": "Delete Report",
+        "category": "Reviewer",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "reviewer.switchProvider",
+        "title": "Switch AI Provider",
+        "category": "Reviewer",
+        "icon": "$(arrow-swap)"
       }
     ],
     "menus": {
+      "view/title": [
+        {
+          "command": "reviewer.refreshQuickActions",
+          "when": "view == reviewer.quickActions",
+          "group": "navigation"
+        },
+        {
+          "command": "reviewer.refreshDashboard",
+          "when": "view == reviewer.dashboard",
+          "group": "navigation"
+        },
+        {
+          "command": "reviewer.refreshHistory",
+          "when": "view == reviewer.history",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "reviewer.openReport",
+          "when": "view == reviewer.history && viewItem == report",
+          "group": "inline"
+        },
+        {
+          "command": "reviewer.deleteReport",
+          "when": "view == reviewer.history && viewItem == report",
+          "group": "inline"
+        }
+      ],
       "scm/title": [
         {
           "command": "reviewer.generateComprehensiveDiff",

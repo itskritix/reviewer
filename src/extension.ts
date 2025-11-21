@@ -5,10 +5,19 @@ import { execFile } from "child_process";
 import { promisify } from "util";
 import { GoogleGenAI } from "@google/genai";
 
+// Import view providers
+import { QuickActionsProvider } from "./views/QuickActionsProvider";
+import { DashboardProvider } from "./views/DashboardProvider";
+import { HistoryProvider } from "./views/HistoryProvider";
+import { ConfigurationProvider } from "./views/ConfigurationProvider";
+
 const execFileAsync = promisify(execFile);
 
 // Global output channel for logging
 let outputChannel: vscode.OutputChannel;
+
+// Global view providers
+let historyProvider: any;
 
 // ============================================================================
 // TYPES AND INTERFACES
@@ -910,6 +919,11 @@ async function generateComprehensiveDiff() {
         fs.writeFileSync(outputPath, reportContent, "utf8");
         log(`Report saved to: ${outputPath}`);
 
+        // Notify history provider to refresh
+        if (historyProvider) {
+          historyProvider.addReport(outputPath);
+        }
+
         progress.report({ increment: 100, message: "Done!" });
 
         // Show success message
@@ -1121,6 +1135,11 @@ ${aiResponse}
         fs.writeFileSync(outputPath, reportContent, "utf8");
         log(`AI review saved to: ${outputPath}`);
 
+        // Notify history provider to refresh
+        if (historyProvider) {
+          historyProvider.addReport(outputPath);
+        }
+
         progress.report({ increment: 100, message: "Done!" });
 
         // Show success message
@@ -1164,7 +1183,34 @@ export function activate(context: vscode.ExtensionContext) {
   log(`Version: 0.0.2`);
   log(`Workspace: ${vscode.workspace.workspaceFolders?.[0]?.uri?.fsPath || "None"}`);
 
-  // Create status bar button
+  // Initialize tree view providers
+  const quickActionsProvider = new QuickActionsProvider();
+  const dashboardProvider = new DashboardProvider();
+  historyProvider = new HistoryProvider(context); // Assign to global variable
+  const configurationProvider = new ConfigurationProvider();
+
+  // Register tree views
+  const quickActionsView = vscode.window.createTreeView("reviewer.quickActions", {
+    treeDataProvider: quickActionsProvider,
+    showCollapseAll: false
+  });
+
+  const dashboardView = vscode.window.createTreeView("reviewer.dashboard", {
+    treeDataProvider: dashboardProvider,
+    showCollapseAll: false
+  });
+
+  const historyView = vscode.window.createTreeView("reviewer.history", {
+    treeDataProvider: historyProvider,
+    showCollapseAll: false
+  });
+
+  const configurationView = vscode.window.createTreeView("reviewer.configuration", {
+    treeDataProvider: configurationProvider,
+    showCollapseAll: true
+  });
+
+  // Create status bar button (keep for backward compatibility)
   const comprehensiveDiffButton = vscode.window.createStatusBarItem(
     vscode.StatusBarAlignment.Left,
     96
@@ -1207,14 +1253,99 @@ export function activate(context: vscode.ExtensionContext) {
     }
   );
 
+  // New sidebar commands
+  const refreshQuickActionsCommand = vscode.commands.registerCommand(
+    "reviewer.refreshQuickActions",
+    () => {
+      quickActionsProvider.refresh();
+    }
+  );
+
+  const refreshDashboardCommand = vscode.commands.registerCommand(
+    "reviewer.refreshDashboard",
+    () => {
+      dashboardProvider.refresh();
+    }
+  );
+
+  const refreshHistoryCommand = vscode.commands.registerCommand(
+    "reviewer.refreshHistory",
+    () => {
+      historyProvider.refresh();
+    }
+  );
+
+  const setupApiKeysCommand = vscode.commands.registerCommand(
+    "reviewer.setupApiKeys",
+    async () => {
+      const config = getConfig();
+      await getApiKey(context, config.aiProvider);
+      dashboardProvider.refresh();
+      configurationProvider.refresh();
+    }
+  );
+
+  const switchProviderCommand = vscode.commands.registerCommand(
+    "reviewer.switchProvider",
+    async () => {
+      const config = vscode.workspace.getConfiguration("reviewer");
+      const currentProvider = config.get<string>("aiProvider") || "gemini";
+      const newProvider = currentProvider === "gemini" ? "openrouter" : "gemini";
+
+      await config.update("aiProvider", newProvider, vscode.ConfigurationTarget.Workspace);
+      vscode.window.showInformationMessage(`Switched to ${newProvider === "gemini" ? "Google Gemini" : "OpenRouter"}`);
+
+      dashboardProvider.refresh();
+      configurationProvider.refresh();
+    }
+  );
+
+  const openReportCommand = vscode.commands.registerCommand(
+    "reviewer.openReport",
+    async (report: any) => {
+      if (report && report.path) {
+        const document = await vscode.workspace.openTextDocument(report.path);
+        await vscode.window.showTextDocument(document);
+      }
+    }
+  );
+
+  const deleteReportCommand = vscode.commands.registerCommand(
+    "reviewer.deleteReport",
+    async (report: any) => {
+      if (report && report.path) {
+        const response = await vscode.window.showWarningMessage(
+          `Delete report "${report.filename}"?`,
+          "Delete",
+          "Cancel"
+        );
+        if (response === "Delete") {
+          historyProvider.deleteReport(report);
+          vscode.window.showInformationMessage("Report deleted successfully");
+        }
+      }
+    }
+  );
+
   // Add to subscriptions
   context.subscriptions.push(comprehensiveDiffButton);
+  context.subscriptions.push(quickActionsView);
+  context.subscriptions.push(dashboardView);
+  context.subscriptions.push(historyView);
+  context.subscriptions.push(configurationView);
   context.subscriptions.push(generateComprehensiveDiffCommand);
   context.subscriptions.push(generateAIReviewCommand);
   context.subscriptions.push(clearApiKeyCommand);
   context.subscriptions.push(showLogsCommand);
+  context.subscriptions.push(refreshQuickActionsCommand);
+  context.subscriptions.push(refreshDashboardCommand);
+  context.subscriptions.push(refreshHistoryCommand);
+  context.subscriptions.push(setupApiKeysCommand);
+  context.subscriptions.push(switchProviderCommand);
+  context.subscriptions.push(openReportCommand);
+  context.subscriptions.push(deleteReportCommand);
 
-  log("All commands registered successfully");
+  log("All commands and tree views registered successfully");
 }
 
 export function deactivate() {
