@@ -11,6 +11,9 @@ import { DashboardProvider } from "./views/DashboardProvider";
 import { HistoryProvider } from "./views/HistoryProvider";
 import { ConfigurationProvider } from "./views/ConfigurationProvider";
 
+// Import enhanced prompt system
+import { PromptManager, ProjectContext, ReviewFocus, ReviewDepth } from "./prompts/PromptManager";
+
 const execFileAsync = promisify(execFile);
 
 // Global output channel for logging
@@ -18,6 +21,9 @@ let outputChannel: vscode.OutputChannel;
 
 // Global view providers
 let historyProvider: any;
+
+// Global prompt system
+let promptManager: PromptManager;
 
 // ============================================================================
 // TYPES AND INTERFACES
@@ -684,7 +690,64 @@ async function callGeminiAPI(
   }
 }
 
-function getDefaultReviewPrompt(currentBranch: string): string {
+async function generateEnhancedPrompt(
+  workspacePath: string,
+  currentBranch: string,
+  changedFiles: string[],
+  linesAdded: number,
+  linesDeleted: number,
+  customPrompt?: string,
+  reviewFocus: ReviewFocus = 'comprehensive',
+  reviewDepth: ReviewDepth = 'standard'
+): Promise<string> {
+  try {
+    // Build project context
+    const projectContext: ProjectContext = {
+      workspacePath,
+      repoName: path.basename(workspacePath),
+      currentBranch,
+      techStack: await detectTechStackFromWorkspace(workspacePath),
+      frameworks: await detectFrameworksFromWorkspace(workspacePath),
+      packageJson: await readPackageJson(workspacePath),
+      gitInfo: {
+        changedFiles,
+        linesAdded,
+        linesDeleted
+      }
+    };
+
+    // Auto-detect optimal review configuration if not specified
+    if (reviewFocus === 'comprehensive' && reviewDepth === 'standard') {
+      const autoConfig = promptManager.autoDetectReviewConfig(projectContext);
+      reviewFocus = autoConfig.suggestedFocus[0] || 'general';
+      reviewDepth = autoConfig.suggestedDepth;
+
+      log(`Auto-detected review config: ${reviewFocus} focus, ${reviewDepth} depth. Reasoning: ${autoConfig.reasoning}`);
+    }
+
+    // Get the git diff content
+    const gitDiffArgs = buildGitDiffArgs(null, getConfig().excludePatterns);
+    const gitDiff = await executeGitCommand(gitDiffArgs, workspacePath);
+
+    // Generate enhanced prompt
+    const enhancedPrompt = await promptManager.generatePrompt(
+      projectContext,
+      gitDiff,
+      reviewFocus,
+      reviewDepth,
+      'mid', // Default developer level, could be configurable
+      customPrompt
+    );
+
+    return enhancedPrompt;
+  } catch (error) {
+    log(`Failed to generate enhanced prompt: ${error}`, "ERROR");
+    // Fallback to basic prompt
+    return getBasicReviewPrompt(currentBranch);
+  }
+}
+
+function getBasicReviewPrompt(currentBranch: string): string {
   return `# Review this code with senior developer standards
 
 Feature: ${currentBranch}
@@ -709,6 +772,85 @@ Must Fix: [Critical items blocking merge]
 Production Ready: Yes/No with reasoning
 
 Instructions: Be thorough, check every line, think long-term maintainability, provide specific line numbers and concrete fixes.`;
+}
+
+async function detectTechStackFromWorkspace(workspacePath: string): Promise<string[]> {
+  const techStack = new Set<string>();
+
+  try {
+    // Check package.json for JavaScript/TypeScript projects
+    const packageJsonPath = path.join(workspacePath, 'package.json');
+    if (fs.existsSync(packageJsonPath)) {
+      const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+      const deps = { ...packageJson.dependencies, ...packageJson.devDependencies };
+
+      Object.keys(deps).forEach(dep => {
+        if (dep.includes('react')) techStack.add('React');
+        if (dep.includes('vue')) techStack.add('Vue');
+        if (dep.includes('angular')) techStack.add('Angular');
+        if (dep.includes('express')) techStack.add('Express');
+        if (dep.includes('typescript')) techStack.add('TypeScript');
+        if (dep.includes('jest')) techStack.add('Jest');
+      });
+
+      if (packageJson.scripts) {
+        if (packageJson.scripts.tsc) techStack.add('TypeScript');
+        if (packageJson.scripts.webpack) techStack.add('Webpack');
+      }
+    }
+
+    // Check for other language indicators
+    const files = fs.readdirSync(workspacePath);
+    files.forEach(file => {
+      if (file.includes('pom.xml') || file.includes('build.gradle')) techStack.add('Java');
+      if (file.includes('requirements.txt') || file.includes('setup.py')) techStack.add('Python');
+      if (file.includes('go.mod')) techStack.add('Go');
+      if (file.includes('Cargo.toml')) techStack.add('Rust');
+      if (file.includes('composer.json')) techStack.add('PHP');
+      if (file.includes('Gemfile')) techStack.add('Ruby');
+    });
+
+  } catch (error) {
+    log(`Error detecting tech stack: ${error}`, "WARN");
+  }
+
+  return Array.from(techStack);
+}
+
+async function detectFrameworksFromWorkspace(workspacePath: string): Promise<string[]> {
+  const frameworks = new Set<string>();
+
+  try {
+    const packageJsonPath = path.join(workspacePath, 'package.json');
+    if (fs.existsSync(packageJsonPath)) {
+      const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+      const deps = { ...packageJson.dependencies, ...packageJson.devDependencies };
+
+      Object.keys(deps).forEach(dep => {
+        if (dep === 'next') frameworks.add('Next.js');
+        if (dep === 'nuxt') frameworks.add('Nuxt.js');
+        if (dep === 'gatsby') frameworks.add('Gatsby');
+        if (dep === '@nestjs/core') frameworks.add('NestJS');
+        if (dep === 'fastify') frameworks.add('Fastify');
+      });
+    }
+  } catch (error) {
+    log(`Error detecting frameworks: ${error}`, "WARN");
+  }
+
+  return Array.from(frameworks);
+}
+
+async function readPackageJson(workspacePath: string): Promise<any> {
+  try {
+    const packageJsonPath = path.join(workspacePath, 'package.json');
+    if (fs.existsSync(packageJsonPath)) {
+      return JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+    }
+  } catch (error) {
+    log(`Error reading package.json: ${error}`, "WARN");
+  }
+  return null;
 }
 
 // ============================================================================
@@ -1081,8 +1223,16 @@ async function generateAIReview(context: vscode.ExtensionContext) {
           return;
         }
 
-        // Get prompt
-        const prompt = config.customPrompt || getDefaultReviewPrompt(options.currentBranch);
+        // Generate enhanced prompt
+        const prompt = config.customPrompt ||
+          await generateEnhancedPrompt(
+            workspacePath,
+            options.currentBranch,
+            changedFiles,
+            processedFiles.reduce((total, file) => total + (file.lineCount || 0), 0),
+            0, // We don't track deleted lines in this context
+            config.customPrompt
+          );
         const fullPrompt = `${prompt}\n\n${codeContent}`;
 
         // Call appropriate AI API based on provider
@@ -1182,6 +1332,10 @@ export function activate(context: vscode.ExtensionContext) {
   log("=== Reviewer Extension Activated ===");
   log(`Version: 0.0.2`);
   log(`Workspace: ${vscode.workspace.workspaceFolders?.[0]?.uri?.fsPath || "None"}`);
+
+  // Initialize enhanced prompt system
+  promptManager = new PromptManager();
+  log("Enhanced prompt system initialized");
 
   // Initialize tree view providers
   const quickActionsProvider = new QuickActionsProvider();
