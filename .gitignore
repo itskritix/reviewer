@@ -30,3 +30,7 @@ npm-debug.log*
 # Generated diff reports (optional - user can uncomment if they don't want to track diffs)
 # comprehensive_diff_*.md
 */node_modules/*
+
+# Releases - VSIX packages
+releases/*.vsix
+*.vsix
