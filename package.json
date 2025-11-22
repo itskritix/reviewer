@@ -3,12 +3,23 @@
   "displayName": "Reviewer - AI Code Review Assistant",
   "description": "Generate comprehensive diff reports and AI-powered code reviews with Google Gemini or OpenRouter",
   "version": "0.0.2",
-  "publisher": "reviewer",
+  "publisher": "kritix",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kritix/reviewer.git"
+  },
+  "bugs": {
+    "url": "https://github.com/kritix/reviewer/issues"
+  },
+  "homepage": "https://github.com/kritix/reviewer#readme",
   "engines": {
     "vscode": "^1.85.0"
   },
   "categories": [
-    "Other"
+    "Other",
+    "Programming Languages",
+    "Linters",
+    "Machine Learning"
   ],
   "activationEvents": [
     "onStartupFinished",
@@ -372,8 +383,8 @@
     "code-review",
     "code-quality"
   ],
-  "author": "",
-  "license": "ISC",
+  "author": "Kritix",
+  "license": "MIT",
   "devDependencies": {
     "@types/node": "^20.10.5",
     "@types/vscode": "^1.85.0",

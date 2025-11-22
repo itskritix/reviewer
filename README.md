@@ -1,9 +1,10 @@
 # Reviewer - AI Code Review Assistant
 
-![Version](https://img.shields.io/badge/version-0.0.1-blue.svg)
+![Version](https://img.shields.io/badge/version-0.0.2-blue.svg)
 ![VS Code](https://img.shields.io/badge/VS%20Code-1.85.0+-green.svg)
+![Local Install](https://img.shields.io/badge/install-local%20VSIX-orange.svg)
 
-A powerful VS Code extension that generates comprehensive diff reports and AI-powered code reviews using Google Gemini or OpenRouter (supporting GPT-4, Claude, and more).
+A powerful VS Code extension that generates comprehensive diff reports and AI-powered code reviews using Google Gemini or OpenRouter. Features an interactive review panel for visualizing issues and copying agent prompts.
 
 ## Features
 
@@ -21,7 +22,16 @@ Get intelligent code reviews from multiple AI providers:
 - Analyzes bugs, security issues, and performance problems
 - Provides actionable feedback with line numbers
 - Customizable review prompts
-- APPROVE/NEEDS CHANGES/REJECT recommendations
+- **Interactive Review Panel** - Visual issue browser with filtering
+- **Copy Agent Prompts** - One-click copying for AI assistants
+
+### 🎨 Interactive Review Panel
+Visualize and manage code review results:
+- **Issue Dashboard** - See all issues with severity and category badges
+- **Smart Filtering** - Filter by severity (critical, high, medium, low) or category
+- **Agent Prompt Integration** - Copy prompts for use with AI coding assistants
+- **Quick Navigation** - Jump directly to problematic code lines
+- **Statistics Overview** - Review summary with issue counts
 
 ### ⚡ Multiple Comparison Modes
 Choose from 7 flexible comparison options:
@@ -35,12 +45,32 @@ Choose from 7 flexible comparison options:
 
 ## Installation
 
-### From VSIX File
-1. Download the `.vsix` file
+### 🚀 Local Installation (Recommended - Skip Microsoft's Bureaucracy!)
+
+The extension is distributed as a `.vsix` file for easy local installation without dealing with marketplace approval processes.
+
+#### Method 1: VS Code GUI (Easiest)
+1. Download `reviewer-0.0.2.vsix` from the releases
 2. Open VS Code
 3. Press `Cmd+Shift+P` (Mac) or `Ctrl+Shift+P` (Windows/Linux)
 4. Type "Extensions: Install from VSIX..."
-5. Select the downloaded file
+5. Select the `reviewer-0.0.2.vsix` file
+6. **Done!** 🎉 The extension is immediately available
+
+#### Method 2: Command Line
+```bash
+# If you have the 'code' command available:
+code --install-extension reviewer-0.0.2.vsix
+
+# Or with full path to VS Code:
+/Applications/Visual\ Studio\ Code.app/Contents/Resources/app/bin/code --install-extension reviewer-0.0.2.vsix
+```
+
+### 🔄 Easy Updates
+When a new version is released:
+1. Download the new `.vsix` file
+2. Install using the same method above
+3. VS Code will automatically update the extension
 
 ### From Source
 ```bash
@@ -72,9 +102,10 @@ Your keys are stored securely using VS Code's SecretStorage
 
 ### Quick Start
 1. Click the "$(diff) Comprehensive Diff" button in the status bar
-2. Or use the robot icon in the Source Control panel
+2. Or use the robot icon in the Source Control panel for AI reviews
 3. Select a comparison mode
 4. View your generated report
+5. **New!** Click "Open Interactive Review" to see the visual issue browser
 
 ### Keyboard Shortcuts
 - **Cmd+Shift+D** (Mac) / **Ctrl+Shift+D** (Windows/Linux) - Generate Comprehensive Diff
@@ -82,10 +113,24 @@ Your keys are stored securely using VS Code's SecretStorage
 
 ### Commands
 Access via Command Palette (`Cmd+Shift+P` / `Ctrl+Shift+P`):
+
+#### Core Features
 - `Reviewer: Generate Comprehensive Diff`
 - `Reviewer: Generate AI Review`
+- `Reviewer: Open Interactive Review` ⭐ **New!**
+
+#### Specialized Reviews
+- `Reviewer: Generate Comprehensive Review`
+- `Reviewer: Generate Security Review`
+- `Reviewer: Generate Performance Review`
+- `Reviewer: Generate Architecture Review`
+- `Reviewer: Generate Testing Review`
+- `Reviewer: Generate Documentation Review`
+
+#### Utilities
 - `Reviewer: Clear API Keys`
 - `Reviewer: Show Logs`
+- `Reviewer: Switch AI Provider`
 
 ## Configuration
 
@@ -254,7 +299,15 @@ Cmd+Shift+P → "Reviewer: Show Logs"
 
 ## Changelog
 
-### v0.0.2 (2025-01-21)
+### v0.0.2 (2025-11-22) - Interactive Review Panel
+- ⭐ **New Interactive Review Panel** - Visual issue browser with filtering
+- 🤖 **Agent Prompt Integration** - Copy prompts for AI coding assistants
+- 📊 **Issue Statistics** - Dashboard with severity and category breakdowns
+- 🔍 **Smart Filtering** - Filter by severity, category, or search terms
+- 🎯 **Quick Navigation** - Jump directly to problematic code lines
+- 🏷️ **Specialized Reviews** - Security, Performance, Architecture, Testing, Documentation
+- 📈 **Review History & Storage** - Track and manage past reviews
+- 🔄 **Enhanced Parsing** - Better issue extraction and categorization
 - Added OpenRouter support for 100+ AI models
 - Support for GPT-4, Claude, and other models via OpenRouter
 - Multi-provider API key management
@@ -279,9 +332,18 @@ Contributions welcome! Please:
 3. Make your changes
 4. Submit a pull request
 
+## Why Local Installation?
+
+We chose to distribute via `.vsix` files instead of the VS Code Marketplace to:
+- ⚡ **Skip bureaucracy** - No publisher accounts, approvals, or delays
+- 🔒 **Maintain control** - Direct updates without marketplace restrictions
+- 🚀 **Faster releases** - Push updates immediately when ready
+- 💰 **No fees** - Avoid marketplace fees or restrictions
+- 🛠️ **Easy development** - Install directly from build artifacts
+
 ## License
 
-ISC
+MIT - See [LICENSE](LICENSE) file for details
 
 ## Support
 
