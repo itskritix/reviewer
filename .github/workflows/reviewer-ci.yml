@@ -1,0 +1,255 @@
+name: 'AI Code Review'
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main, master, develop]
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+    inputs:
+      review_depth:
+        description: 'Review depth (surface/standard/deep)'
+        required: false
+        default: 'standard'
+        type: choice
+        options:
+        - surface
+        - standard
+        - deep
+      focus_area:
+        description: 'Review focus area'
+        required: false
+        default: 'comprehensive'
+        type: choice
+        options:
+        - comprehensive
+        - security
+        - performance
+        - architecture
+        - testing
+        - documentation
+
+jobs:
+  ai-code-review:
+    name: 'AI Code Review'
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          npm install -g @vscode/vsce
+
+      - name: Build extension
+        run: |
+          npm run compile
+          vsce package --out reviewer-ci.vsix
+
+      - name: Setup AI Review Environment
+        run: |
+          echo "REVIEW_DEPTH=${{ github.event.inputs.review_depth || 'standard' }}" >> $GITHUB_ENV
+          echo "FOCUS_AREA=${{ github.event.inputs.focus_area || 'comprehensive' }}" >> $GITHUB_ENV
+          echo "PR_NUMBER=${{ github.event.pull_request.number }}" >> $GITHUB_ENV
+          echo "BASE_SHA=${{ github.event.pull_request.base.sha || github.event.before }}" >> $GITHUB_ENV
+          echo "HEAD_SHA=${{ github.sha }}" >> $GITHUB_ENV
+
+      - name: Generate diff for review
+        id: generate_diff
+        run: |
+          # Generate comprehensive diff
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            git diff ${{ env.BASE_SHA }}..${{ env.HEAD_SHA }} > changes.diff
+          else
+            git diff HEAD~1 HEAD > changes.diff
+          fi
+
+          # Get changed files
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            git diff --name-only ${{ env.BASE_SHA }}..${{ env.HEAD_SHA }} > changed_files.txt
+          else
+            git diff --name-only HEAD~1 HEAD > changed_files.txt
+          fi
+
+          echo "CHANGED_FILES=$(cat changed_files.txt | tr '\n' ',')" >> $GITHUB_ENV
+          echo "DIFF_SIZE=$(wc -l < changes.diff)" >> $GITHUB_ENV
+
+      - name: AI Code Review
+        id: ai_review
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: |
+          node -e "
+          const fs = require('fs');
+          const { PromptManager } = require('./out/src/prompts/PromptManager.js');
+          const { callGeminiAPI } = require('./out/src/extension.js');
+
+          async function runReview() {
+            try {
+              const diff = fs.readFileSync('changes.diff', 'utf8');
+              const changedFiles = fs.readFileSync('changed_files.txt', 'utf8').split('\n').filter(f => f.trim());
+
+              const projectContext = {
+                workspacePath: process.cwd(),
+                repoName: '${{ github.repository }}',
+                currentBranch: '${{ github.ref_name }}',
+                techStack: [],
+                frameworks: [],
+                gitInfo: {
+                  changedFiles: changedFiles,
+                  linesAdded: parseInt('${{ env.DIFF_SIZE }}') || 0,
+                  linesDeleted: 0
+                }
+              };
+
+              // Try to read package.json for tech stack detection
+              try {
+                projectContext.packageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+              } catch (e) {
+                console.log('No package.json found');
+              }
+
+              const promptManager = new PromptManager();
+              const prompt = await promptManager.generatePrompt(
+                projectContext,
+                diff,
+                '${{ env.FOCUS_AREA }}',
+                '${{ env.REVIEW_DEPTH }}',
+                'mid'
+              );
+
+              // Use Gemini API for review
+              const apiKey = process.env.GEMINI_API_KEY;
+              if (!apiKey) {
+                throw new Error('GEMINI_API_KEY not configured');
+              }
+
+              console.log('Generating AI review...');
+              const review = await callGeminiAPI(apiKey, prompt, 'gemini-1.5-pro');
+
+              // Save review to file
+              fs.writeFileSync('ai_review.md', review);
+              console.log('Review generated successfully');
+
+            } catch (error) {
+              console.error('Review failed:', error);
+              fs.writeFileSync('ai_review.md', '# AI Review Failed\n\nError: ' + error.message);
+              process.exit(1);
+            }
+          }
+
+          runReview();
+          "
+
+      - name: Post review comment
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const review = fs.readFileSync('ai_review.md', 'utf8');
+
+            const comment = `
+            ## 🤖 AI Code Review Report
+
+            **Review Configuration:**
+            - **Depth:** ${{ env.REVIEW_DEPTH }}
+            - **Focus:** ${{ env.FOCUS_AREA }}
+            - **Files Changed:** ${{ env.CHANGED_FILES }}
+            - **Generated:** ${new Date().toISOString()}
+
+            ---
+
+            ${review}
+
+            ---
+
+            *This review was automatically generated by the Reviewer AI extension. [Learn more](https://github.com/your-org/reviewer)*
+            `;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+
+      - name: Create review summary issue
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const review = fs.readFileSync('ai_review.md', 'utf8');
+
+            const title = `🤖 AI Review Summary - ${context.sha.substring(0, 7)}`;
+            const body = `
+            ## AI Code Review Summary
+
+            **Commit:** ${context.sha}
+            **Branch:** ${context.ref}
+            **Review Depth:** ${{ env.REVIEW_DEPTH }}
+            **Focus Area:** ${{ env.FOCUS_AREA }}
+
+            ---
+
+            ${review}
+
+            ---
+
+            *Auto-generated by Reviewer AI on push to main branch*
+            `;
+
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: title,
+              body: body,
+              labels: ['ai-review', 'automated']
+            });
+
+      - name: Upload review artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ai-review-${{ github.sha }}
+          path: |
+            ai_review.md
+            changes.diff
+            changed_files.txt
+          retention-days: 30
+
+  security-check:
+    name: 'Security Focus Review'
+    runs-on: ubuntu-latest
+    if: contains(github.event.pull_request.changed_files, 'auth') || contains(github.event.pull_request.changed_files, 'security') || contains(github.event.pull_request.changed_files, 'login')
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Security-focused AI review
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          echo "🔒 Running security-focused review for security-related changes"
+          # This would run the same review but with security focus
+          # Implementation would be similar to above but with focus: 'security'

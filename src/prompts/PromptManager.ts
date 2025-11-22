@@ -2,6 +2,8 @@ import { PromptTemplate, PromptContext } from './PromptTemplate';
 import { SecurityAgentPrompt } from './SecurityAgentPrompt';
 import { PerformanceAgentPrompt } from './PerformanceAgentPrompt';
 import { ArchitectureAgentPrompt } from './ArchitectureAgentPrompt';
+import { TestingAgentPrompt } from './TestingAgentPrompt';
+import { DocumentationAgentPrompt } from './DocumentationAgentPrompt';
 
 export interface ProjectContext {
   workspacePath: string;
@@ -18,7 +20,7 @@ export interface ProjectContext {
   };
 }
 
-export type ReviewFocus = 'security' | 'performance' | 'architecture' | 'testing' | 'general' | 'comprehensive';
+export type ReviewFocus = 'security' | 'performance' | 'architecture' | 'testing' | 'documentation' | 'general' | 'comprehensive';
 export type ReviewDepth = 'surface' | 'standard' | 'deep';
 export type DeveloperLevel = 'junior' | 'mid' | 'senior';
 
@@ -33,6 +35,8 @@ export class PromptManager {
     this.agents.set('security', new SecurityAgentPrompt());
     this.agents.set('performance', new PerformanceAgentPrompt());
     this.agents.set('architecture', new ArchitectureAgentPrompt());
+    this.agents.set('testing', new TestingAgentPrompt());
+    this.agents.set('documentation', new DocumentationAgentPrompt());
   }
 
   /**
@@ -102,6 +106,18 @@ export class PromptManager {
     if (this.hasArchitectureRelevantChanges(changedFiles, projectContext)) {
       suggestions.push('architecture');
       reasons.push('Architectural changes or new patterns introduced');
+    }
+
+    // Testing focus detection
+    if (this.hasTestingRelevantChanges(changedFiles, projectContext)) {
+      suggestions.push('testing');
+      reasons.push('Testing gaps or testability concerns detected');
+    }
+
+    // Documentation focus detection
+    if (this.hasDocumentationRelevantChanges(changedFiles, projectContext)) {
+      suggestions.push('documentation');
+      reasons.push('Documentation updates or complex code requiring docs');
     }
 
     // Determine depth based on change scope
@@ -282,6 +298,52 @@ export class PromptManager {
     );
   }
 
+  private hasTestingRelevantChanges(changedFiles: string[], context: ProjectContext): boolean {
+    const testPatterns = [
+      /\.test\./i, /\.spec\./i, /__tests__/i, /test/i, /spec/i,
+      /mock/i, /fixture/i, /stub/i, /e2e/i, /integration/i
+    ];
+
+    const complexityIndicators = [
+      /algorithm/i, /complex/i, /logic/i, /validation/i, /calculation/i,
+      /async/i, /promise/i, /callback/i, /event/i, /handler/i
+    ];
+
+    const linesChanged = (context.gitInfo?.linesAdded || 0) +
+                        (context.gitInfo?.linesDeleted || 0);
+
+    // Suggest testing for test files, complex logic, or large changes
+    return changedFiles.some(file =>
+      testPatterns.some(pattern => pattern.test(file)) ||
+      complexityIndicators.some(pattern => pattern.test(file))
+    ) || linesChanged > 150; // Large changes often need comprehensive testing
+  }
+
+  private hasDocumentationRelevantChanges(changedFiles: string[], context: ProjectContext): boolean {
+    const docPatterns = [
+      /readme/i, /doc/i, /\.md$/i, /comment/i, /jsdoc/i, /docstring/i
+    ];
+
+    const complexCodePatterns = [
+      /api/i, /interface/i, /public/i, /export/i, /class/i,
+      /function/i, /method/i, /component/i, /service/i
+    ];
+
+    const publicApiPatterns = [
+      /index\./i, /main\./i, /app\./i, /server\./i, /client\./i
+    ];
+
+    const linesChanged = (context.gitInfo?.linesAdded || 0) +
+                        (context.gitInfo?.linesDeleted || 0);
+
+    // Suggest documentation for doc files, public APIs, complex code, or large changes
+    return changedFiles.some(file =>
+      docPatterns.some(pattern => pattern.test(file)) ||
+      complexCodePatterns.some(pattern => pattern.test(file)) ||
+      publicApiPatterns.some(pattern => pattern.test(file))
+    ) || linesChanged > 200; // Large changes often need documentation updates
+  }
+
   private generateComprehensivePrompt(context: PromptContext, codeContent: string): string {
     return `# 🔍 Comprehensive AI Code Review
 
@@ -311,10 +373,15 @@ You will conduct a comprehensive review combining multiple expert perspectives:
 - Assess code organization and separation of concerns
 - Evaluate maintainability and extensibility
 
-### 🧪 Quality Analysis
-- Check code style and consistency
-- Evaluate error handling and edge cases
-- Assess testing needs and coverage gaps
+### 🧪 Testing Analysis
+- Identify missing test coverage and test cases
+- Evaluate testability and testing strategies
+- Suggest unit, integration, and e2e tests
+
+### 📚 Documentation Analysis
+- Review code documentation completeness
+- Assess API documentation quality
+- Suggest improvements for clarity and maintainability
 
 ## Code Under Review
 ### Files: ${context.changedFiles.join(', ')}

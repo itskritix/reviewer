@@ -14,6 +14,14 @@ import { ConfigurationProvider } from "./views/ConfigurationProvider";
 // Import enhanced prompt system
 import { PromptManager, ProjectContext, ReviewFocus, ReviewDepth } from "./prompts/PromptManager";
 
+// Import CI integration
+import { CIIntegration } from "./integrations/CIIntegration";
+
+// Import interactive review panel
+import { InteractiveReviewPanel, ReviewData } from "./views/InteractiveReviewPanel";
+import { ReviewParser } from "./parsers/ReviewParser";
+import { ReviewStorage, ReviewMetadata } from "./storage/ReviewStorage";
+
 const execFileAsync = promisify(execFile);
 
 // Global output channel for logging
@@ -24,6 +32,9 @@ let historyProvider: any;
 
 // Global prompt system
 let promptManager: PromptManager;
+
+// Global CI integration
+let ciIntegration: CIIntegration;
 
 // ============================================================================
 // TYPES AND INTERFACES
@@ -1063,7 +1074,7 @@ async function generateComprehensiveDiff() {
 
         // Notify history provider to refresh
         if (historyProvider) {
-          historyProvider.addReport(outputPath);
+          await historyProvider.addReport(outputPath);
         }
 
         progress.report({ increment: 100, message: "Done!" });
@@ -1287,7 +1298,7 @@ ${aiResponse}
 
         // Notify history provider to refresh
         if (historyProvider) {
-          historyProvider.addReport(outputPath);
+          await historyProvider.addReport(outputPath);
         }
 
         progress.report({ increment: 100, message: "Done!" });
@@ -1324,6 +1335,60 @@ ${aiResponse}
 // EXTENSION LIFECYCLE
 // ============================================================================
 
+// ============================================================================
+// CI CONFIGURATION HELPERS
+// ============================================================================
+
+async function handleCIConfiguration(setting: string, config: any): Promise<void> {
+  switch (setting) {
+    case 'Review Depth':
+      const depths = ['surface', 'standard', 'deep'];
+      const selectedDepth = await vscode.window.showQuickPick(depths, {
+        placeHolder: 'Select review depth for CI/CD'
+      });
+      if (selectedDepth && ciIntegration) {
+        await ciIntegration.updateConfig({ reviewDepth: selectedDepth as any });
+        vscode.window.showInformationMessage(`Review depth set to: ${selectedDepth}`);
+      }
+      break;
+
+    case 'Focus Area':
+      const focusAreas = ['comprehensive', 'security', 'performance', 'architecture', 'testing', 'documentation'];
+      const selectedFocus = await vscode.window.showQuickPick(focusAreas, {
+        placeHolder: 'Select focus area for CI/CD'
+      });
+      if (selectedFocus && ciIntegration) {
+        await ciIntegration.updateConfig({ focusArea: selectedFocus as any });
+        vscode.window.showInformationMessage(`Focus area set to: ${selectedFocus}`);
+      }
+      break;
+
+    case 'Trigger on PR':
+      const prOptions = ['Enable', 'Disable'];
+      const selectedPR = await vscode.window.showQuickPick(prOptions, {
+        placeHolder: 'Trigger reviews on pull requests?'
+      });
+      if (selectedPR && ciIntegration) {
+        const enabled = selectedPR === 'Enable';
+        await ciIntegration.updateConfig({ triggerOnPR: enabled });
+        vscode.window.showInformationMessage(`PR triggers ${enabled ? 'enabled' : 'disabled'}`);
+      }
+      break;
+
+    case 'Trigger on Push':
+      const pushOptions = ['Enable', 'Disable'];
+      const selectedPush = await vscode.window.showQuickPick(pushOptions, {
+        placeHolder: 'Trigger reviews on push to main branch?'
+      });
+      if (selectedPush && ciIntegration) {
+        const enabled = selectedPush === 'Enable';
+        await ciIntegration.updateConfig({ triggerOnPush: enabled });
+        vscode.window.showInformationMessage(`Push triggers ${enabled ? 'enabled' : 'disabled'}`);
+      }
+      break;
+  }
+}
+
 export function activate(context: vscode.ExtensionContext) {
   // Initialize output channel
   outputChannel = vscode.window.createOutputChannel("Reviewer");
@@ -1336,6 +1401,13 @@ export function activate(context: vscode.ExtensionContext) {
   // Initialize enhanced prompt system
   promptManager = new PromptManager();
   log("Enhanced prompt system initialized");
+
+  // Initialize CI integration
+  const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri?.fsPath;
+  if (workspaceRoot) {
+    ciIntegration = new CIIntegration(workspaceRoot);
+    log("CI/CD integration initialized");
+  }
 
   // Initialize tree view providers
   const quickActionsProvider = new QuickActionsProvider();
@@ -1481,6 +1553,276 @@ export function activate(context: vscode.ExtensionContext) {
     }
   );
 
+  // CI/CD Integration Commands
+  const setupCICommand = vscode.commands.registerCommand(
+    "reviewer.setupCI",
+    async () => {
+      if (ciIntegration) {
+        await ciIntegration.initializeCIIntegration();
+      } else {
+        vscode.window.showErrorMessage("CI integration not available. Ensure you have a workspace opened.");
+      }
+    }
+  );
+
+  const configureCICommand = vscode.commands.registerCommand(
+    "reviewer.configureCI",
+    async () => {
+      if (ciIntegration) {
+        const config = ciIntegration.getConfig();
+        const options = [
+          { label: 'Review Depth', description: `Current: ${config.reviewDepth}` },
+          { label: 'Focus Area', description: `Current: ${config.focusArea}` },
+          { label: 'Trigger on PR', description: `Current: ${config.triggerOnPR ? 'Enabled' : 'Disabled'}` },
+          { label: 'Trigger on Push', description: `Current: ${config.triggerOnPush ? 'Enabled' : 'Disabled'}` }
+        ];
+
+        const selected = await vscode.window.showQuickPick(options, {
+          placeHolder: 'Select CI setting to configure'
+        });
+
+        if (selected) {
+          // Handle configuration based on selection
+          await handleCIConfiguration(selected.label, config);
+        }
+      } else {
+        vscode.window.showErrorMessage("CI integration not configured. Run 'Setup CI/CD Integration' first.");
+      }
+    }
+  );
+
+  // History Management Commands
+  const searchHistoryCommand = vscode.commands.registerCommand(
+    "reviewer.searchHistory",
+    async () => {
+      const query = await vscode.window.showInputBox({
+        prompt: 'Search review history',
+        placeHolder: 'Enter search terms (filename, branch, repository, or content)'
+      });
+
+      if (query && historyProvider) {
+        const results = await historyProvider.searchReviews(query);
+
+        if (results.length === 0) {
+          vscode.window.showInformationMessage(`No reviews found for "${query}"`);
+          return;
+        }
+
+        const items = results.map((review: any) => ({
+          label: review.filename,
+          description: `${review.branch} • ${review.timestamp.toLocaleDateString()}`,
+          detail: review.summary || `${review.type} review`,
+          review: review
+        }));
+
+        const selected = await vscode.window.showQuickPick(items, {
+          placeHolder: `${results.length} review(s) found for "${query}"`
+        });
+
+        if (selected && (selected as any).review) {
+          // Open the selected review
+          const doc = await vscode.workspace.openTextDocument((selected as any).review.path);
+          await vscode.window.showTextDocument(doc);
+        }
+      }
+    }
+  );
+
+  const exportHistoryCommand = vscode.commands.registerCommand(
+    "reviewer.exportHistory",
+    async () => {
+      if (!historyProvider) return;
+
+      const uri = await vscode.window.showSaveDialog({
+        defaultUri: vscode.Uri.file('review-history.json'),
+        filters: {
+          'JSON Files': ['json']
+        }
+      });
+
+      if (uri) {
+        try {
+          await historyProvider.exportReviews(uri.fsPath);
+          vscode.window.showInformationMessage(`Review history exported to ${uri.fsPath}`);
+        } catch (error) {
+          vscode.window.showErrorMessage(`Failed to export history: ${error}`);
+        }
+      }
+    }
+  );
+
+  const importHistoryCommand = vscode.commands.registerCommand(
+    "reviewer.importHistory",
+    async () => {
+      if (!historyProvider) return;
+
+      const uris = await vscode.window.showOpenDialog({
+        canSelectFiles: true,
+        canSelectFolders: false,
+        canSelectMany: false,
+        filters: {
+          'JSON Files': ['json']
+        }
+      });
+
+      if (uris && uris[0]) {
+        try {
+          const imported = await historyProvider.importReviews(uris[0].fsPath);
+          vscode.window.showInformationMessage(`Imported ${imported} review(s) from ${uris[0].fsPath}`);
+        } catch (error) {
+          vscode.window.showErrorMessage(`Failed to import history: ${error}`);
+        }
+      }
+    }
+  );
+
+  const clearHistoryCommand = vscode.commands.registerCommand(
+    "reviewer.clearHistory",
+    async () => {
+      if (!historyProvider) return;
+
+      const response = await vscode.window.showWarningMessage(
+        'This will permanently delete all review history. This action cannot be undone.',
+        'Clear History',
+        'Cancel'
+      );
+
+      if (response === 'Clear History') {
+        try {
+          await historyProvider.clearAllReviews();
+          vscode.window.showInformationMessage('Review history cleared successfully');
+        } catch (error) {
+          vscode.window.showErrorMessage(`Failed to clear history: ${error}`);
+        }
+      }
+    }
+  );
+
+  const showStatisticsCommand = vscode.commands.registerCommand(
+    "reviewer.showStatistics",
+    async () => {
+      if (!historyProvider) return;
+
+      try {
+        const stats = await historyProvider.getStatistics();
+
+        const statsMarkdown = `# Review Statistics
+
+## Overview
+- **Total Reviews**: ${stats.totalReviews}
+- **Diff Reports**: ${stats.reviewsByType.diff}
+- **AI Reviews**: ${stats.reviewsByType.ai_review}
+- **Average Reviews/Day**: ${stats.averageReviewsPerDay.toFixed(1)} (last 30 days)
+
+## Activity
+- **Most Active Repository**: ${stats.mostActiveRepository}
+- **Most Active Branch**: ${stats.mostActiveBranch}
+
+## AI Providers Used
+${Object.entries(stats.reviewsByProvider).map(([provider, count]) =>
+  `- **${provider}**: ${count} reviews`).join('\n') || '- None'}
+
+## Recent Activity (Last 7 Days)
+${stats.recentActivity.map((day: any) =>
+  `- **${new Date(day.date).toLocaleDateString()}**: ${day.count} reviews`).join('\n')}
+
+---
+*Generated on ${new Date().toLocaleString()}*
+`;
+
+        // Create a new document with the statistics
+        const doc = await vscode.workspace.openTextDocument({
+          content: statsMarkdown,
+          language: 'markdown'
+        });
+
+        await vscode.window.showTextDocument(doc);
+      } catch (error) {
+        vscode.window.showErrorMessage(`Failed to generate statistics: ${error}`);
+      }
+    }
+  );
+
+  const openInteractiveReviewCommand = vscode.commands.registerCommand(
+    "reviewer.openInteractiveReview",
+    async (reviewFile?: any) => {
+      try {
+        let filePath: string;
+
+        if (reviewFile && reviewFile.report && reviewFile.report.path) {
+          // Called from history provider with ReportNode object
+          filePath = reviewFile.report.path;
+        } else if (reviewFile && reviewFile.path) {
+          // Called with direct path object
+          filePath = reviewFile.path;
+        } else {
+          // Fallback: Try to find the most recent AI review file
+          const storage = new ReviewStorage(context);
+          const reports = await storage.getAllReviews();
+          const aiReports = reports.filter((r: ReviewMetadata) => r.type === 'ai_review');
+
+          if (aiReports.length > 0) {
+            // Use the most recent AI review
+            const latestReport = aiReports.sort((a: ReviewMetadata, b: ReviewMetadata) => b.timestamp.getTime() - a.timestamp.getTime())[0];
+            filePath = latestReport.path;
+          } else {
+            // Let user select a review file
+            const uris = await vscode.window.showOpenDialog({
+              canSelectFiles: true,
+              canSelectFolders: false,
+              canSelectMany: false,
+              filters: {
+                'Markdown Files': ['md'],
+                'All Files': ['*']
+              },
+              title: 'Select AI Review File'
+            });
+
+            if (!uris || uris.length === 0) {
+              return;
+            }
+
+            filePath = uris[0].fsPath;
+          }
+        }
+
+        // Parse the review file
+        const parsedData = ReviewParser.parseReviewFile(filePath);
+
+        // Convert to ReviewData format
+        const reviewData: ReviewData = {
+          title: parsedData.title,
+          timestamp: parsedData.timestamp,
+          branch: parsedData.branch,
+          repository: parsedData.repository,
+          provider: parsedData.provider,
+          model: parsedData.model,
+          summary: parsedData.summary,
+          issues: parsedData.issues.map(issue => ({
+            line: issue.line,
+            column: issue.column,
+            severity: issue.severity,
+            category: issue.category,
+            title: issue.title,
+            description: issue.description,
+            suggestion: issue.suggestion,
+            agentPrompt: issue.agentPrompt,
+            file: issue.file
+          })),
+          codeContent: parsedData.codeContent,
+          diffContent: parsedData.diffContent
+        };
+
+        // Open interactive review panel
+        InteractiveReviewPanel.createOrShow(context.extensionUri, reviewData);
+
+      } catch (error) {
+        vscode.window.showErrorMessage(`Failed to open interactive review: ${error}`);
+        log(`Interactive review error: ${error}`);
+      }
+    }
+  );
+
   // Add to subscriptions
   context.subscriptions.push(comprehensiveDiffButton);
   context.subscriptions.push(quickActionsView);
@@ -1498,6 +1840,14 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(switchProviderCommand);
   context.subscriptions.push(openReportCommand);
   context.subscriptions.push(deleteReportCommand);
+  context.subscriptions.push(setupCICommand);
+  context.subscriptions.push(configureCICommand);
+  context.subscriptions.push(searchHistoryCommand);
+  context.subscriptions.push(exportHistoryCommand);
+  context.subscriptions.push(importHistoryCommand);
+  context.subscriptions.push(clearHistoryCommand);
+  context.subscriptions.push(showStatisticsCommand);
+  context.subscriptions.push(openInteractiveReviewCommand);
 
   log("All commands and tree views registered successfully");
 }

@@ -2,17 +2,10 @@ import * as vscode from "vscode";
 import * as path from "path";
 import * as fs from "fs";
 import { BaseNode } from "./nodes/BaseNode";
+import { ReviewStorage, ReviewMetadata } from "../storage/ReviewStorage";
 
-interface ReviewReport {
-  id: string;
-  filename: string;
-  path: string;
-  type: "diff" | "ai_review";
-  timestamp: Date;
-  branch: string;
-  aiProvider?: string;
-  aiModel?: string;
-}
+// Alias for backward compatibility
+type ReviewReport = ReviewMetadata;
 
 export class ReportNode extends BaseNode {
   constructor(public readonly report: ReviewReport) {
@@ -69,13 +62,15 @@ export class HistoryProvider implements vscode.TreeDataProvider<BaseNode> {
     this._onDidChangeTreeData.event;
 
   private reports: ReviewReport[] = [];
+  private storage: ReviewStorage;
 
   constructor(private context: vscode.ExtensionContext) {
+    this.storage = new ReviewStorage(context);
     this.loadReports();
   }
 
-  refresh(): void {
-    this.loadReports();
+  async refresh(): Promise<void> {
+    await this.loadReports();
     this._onDidChangeTreeData.fire();
   }
 
@@ -96,21 +91,39 @@ export class HistoryProvider implements vscode.TreeDataProvider<BaseNode> {
       .map(report => new ReportNode(report));
   }
 
-  private loadReports(): void {
+  private async loadReports(): Promise<void> {
     try {
-      const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri?.fsPath;
-      if (!workspacePath) {
-        this.reports = [];
-        return;
-      }
+      // Load from persistent storage
+      this.reports = await this.storage.getAllReviews();
 
-      // Look for report files in workspace
-      const reportFiles = this.findReportFiles(workspacePath);
-      this.reports = reportFiles.map(file => this.parseReportFile(file));
+      // Also scan workspace for any new files not in storage
+      await this.syncWorkspaceReports();
     } catch (error) {
       console.error("Failed to load reports:", error);
       this.reports = [];
     }
+  }
+
+  /**
+   * Sync workspace reports with storage
+   */
+  private async syncWorkspaceReports(): Promise<void> {
+    const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri?.fsPath;
+    if (!workspacePath) return;
+
+    const reportFiles = this.findReportFiles(workspacePath);
+    const storedPaths = new Set(this.reports.map(r => r.path));
+
+    for (const filePath of reportFiles) {
+      if (!storedPaths.has(filePath)) {
+        // New file found, add to storage
+        const reportData = this.parseReportFile(filePath);
+        await this.storage.saveReview(reportData);
+      }
+    }
+
+    // Reload after sync
+    this.reports = await this.storage.getAllReviews();
   }
 
   private findReportFiles(workspacePath: string): string[] {
@@ -145,7 +158,7 @@ export class HistoryProvider implements vscode.TreeDataProvider<BaseNode> {
     return files.slice(0, 20); // Limit to most recent 20 reports
   }
 
-  private parseReportFile(filePath: string): ReviewReport {
+  private parseReportFile(filePath: string): Omit<ReviewReport, 'id' | 'timestamp'> {
     const filename = path.basename(filePath);
     const stats = fs.statSync(filePath);
 
@@ -161,31 +174,119 @@ export class HistoryProvider implements vscode.TreeDataProvider<BaseNode> {
       branch = parts[1];
     }
 
+    // Get repository name from workspace
+    const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri?.fsPath;
+    const repository = workspacePath ? path.basename(workspacePath) : 'unknown';
+
+    // Parse file content for additional metadata
+    let aiProvider: string | undefined;
+    let aiModel: string | undefined;
+    let summary: string | undefined;
+    let fileCount = 0;
+    let linesAdded = 0;
+    let linesDeleted = 0;
+
+    try {
+      const content = fs.readFileSync(filePath, 'utf8');
+
+      // Extract AI provider and model
+      const providerMatch = content.match(/\*\*AI Provider\*\*: (.+)/);
+      if (providerMatch) {
+        aiProvider = providerMatch[1].trim();
+      }
+
+      const modelMatch = content.match(/\*\*Model\*\*: (.+)/);
+      if (modelMatch) {
+        aiModel = modelMatch[1].trim();
+      }
+
+      // Extract summary (first 200 characters of the review)
+      const summaryMatch = content.match(/## (?:Review|Summary)[\s\S]*?\n\n([\s\S]{1,200})/);
+      if (summaryMatch) {
+        summary = summaryMatch[1].trim().replace(/\n/g, ' ').substring(0, 200);
+      }
+
+      // Extract file count and line changes
+      const fileCountMatch = content.match(/(\d+) files? changed/i);
+      if (fileCountMatch) {
+        fileCount = parseInt(fileCountMatch[1]);
+      }
+
+      const linesMatch = content.match(/\+(\d+) -(\d+) lines/);
+      if (linesMatch) {
+        linesAdded = parseInt(linesMatch[1]);
+        linesDeleted = parseInt(linesMatch[2]);
+      }
+    } catch (error) {
+      console.error('Failed to parse file content:', error);
+    }
+
     return {
-      id: filename,
       filename: filename,
       path: filePath,
       type,
-      timestamp: stats.mtime,
       branch,
-      aiProvider: undefined, // Could be parsed from file content
-      aiModel: undefined
+      repository,
+      aiProvider,
+      aiModel,
+      summary,
+      fileCount,
+      linesAdded,
+      linesDeleted,
+      tags: [] // Could be extracted from content or user-defined
     };
   }
 
-  public addReport(reportPath: string): void {
-    const report = this.parseReportFile(reportPath);
-    this.reports.unshift(report); // Add to beginning
-    this.refresh();
+  public async addReport(reportPath: string): Promise<void> {
+    const reportData = this.parseReportFile(reportPath);
+    await this.storage.saveReview(reportData);
+    await this.refresh();
   }
 
-  public deleteReport(report: ReviewReport): void {
+  public async deleteReport(report: ReviewReport): Promise<void> {
     try {
-      fs.unlinkSync(report.path);
-      this.reports = this.reports.filter(r => r.id !== report.id);
-      this.refresh();
+      await this.storage.deleteReview(report.id);
+      await this.refresh();
     } catch (error) {
       vscode.window.showErrorMessage(`Failed to delete report: ${error}`);
     }
+  }
+
+  /**
+   * Get review statistics for dashboard
+   */
+  public async getStatistics() {
+    return this.storage.getReviewStatistics();
+  }
+
+  /**
+   * Search reviews
+   */
+  public async searchReviews(query: string): Promise<ReviewReport[]> {
+    return this.storage.searchReviews(query);
+  }
+
+  /**
+   * Export reviews
+   */
+  public async exportReviews(filePath: string, filters?: any): Promise<void> {
+    return this.storage.exportReviews(filePath, filters);
+  }
+
+  /**
+   * Import reviews
+   */
+  public async importReviews(filePath: string): Promise<number> {
+    const imported = await this.storage.importReviews(filePath);
+    await this.refresh();
+    return imported;
+  }
+
+  /**
+   * Clear all reviews
+   */
+  public async clearAllReviews(): Promise<void> {
+    await this.storage.clearAllReviews();
+    await this.refresh();
   }
 }

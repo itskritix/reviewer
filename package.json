@@ -128,6 +128,54 @@
         "title": "Switch AI Provider",
         "category": "Reviewer",
         "icon": "$(arrow-swap)"
+      },
+      {
+        "command": "reviewer.setupCI",
+        "title": "Setup CI/CD Integration",
+        "category": "Reviewer",
+        "icon": "$(gear)"
+      },
+      {
+        "command": "reviewer.configureCI",
+        "title": "Configure CI Settings",
+        "category": "Reviewer",
+        "icon": "$(settings-gear)"
+      },
+      {
+        "command": "reviewer.searchHistory",
+        "title": "Search Review History",
+        "category": "Reviewer",
+        "icon": "$(search)"
+      },
+      {
+        "command": "reviewer.exportHistory",
+        "title": "Export Review History",
+        "category": "Reviewer",
+        "icon": "$(export)"
+      },
+      {
+        "command": "reviewer.importHistory",
+        "title": "Import Review History",
+        "category": "Reviewer",
+        "icon": "$(import)"
+      },
+      {
+        "command": "reviewer.clearHistory",
+        "title": "Clear Review History",
+        "category": "Reviewer",
+        "icon": "$(clear-all)"
+      },
+      {
+        "command": "reviewer.showStatistics",
+        "title": "Show Review Statistics",
+        "category": "Reviewer",
+        "icon": "$(graph)"
+      },
+      {
+        "command": "reviewer.openInteractiveReview",
+        "title": "Open Interactive Review",
+        "category": "Reviewer",
+        "icon": "$(preview)"
       }
     ],
     "menus": {
@@ -151,6 +199,11 @@
       "view/item/context": [
         {
           "command": "reviewer.openReport",
+          "when": "view == reviewer.history && viewItem == report",
+          "group": "inline"
+        },
+        {
+          "command": "reviewer.openInteractiveReview",
           "when": "view == reviewer.history && viewItem == report",
           "group": "inline"
         },
@@ -270,7 +323,9 @@
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
     "pretest": "npm run compile",
-    "lint": "eslint src --ext ts"
+    "lint": "eslint src --ext ts",
+    "ci-review": "node scripts/ci-review.js",
+    "package": "vsce package"
   },
   "keywords": [
     "git",
