@@ -36,13 +36,49 @@ export class QuickActionsProvider implements vscode.TreeDataProvider<BaseNode> {
         "Create detailed diff report"
       ),
       new ActionNode(
-        "Generate AI Review",
+        "🔍 AI Review (Choose Type)",
         {
           command: "reviewer.generateAIReview",
           title: "Generate AI Review",
         },
         new vscode.ThemeIcon("hubot"),
-        "Get AI-powered code review"
+        "Get AI-powered code review with type selection"
+      ),
+      new ActionNode(
+        "🔍 Comprehensive Review",
+        {
+          command: "reviewer.generateComprehensiveReview",
+          title: "Generate Comprehensive Review",
+        },
+        new vscode.ThemeIcon("checklist"),
+        "Full analysis: Security, Performance, Architecture, Testing, Docs"
+      ),
+      new ActionNode(
+        "🛡️ Security Review",
+        {
+          command: "reviewer.generateSecurityReview",
+          title: "Generate Security Review",
+        },
+        new vscode.ThemeIcon("shield"),
+        "Focus on security vulnerabilities and best practices"
+      ),
+      new ActionNode(
+        "⚡ Performance Review",
+        {
+          command: "reviewer.generatePerformanceReview",
+          title: "Generate Performance Review",
+        },
+        new vscode.ThemeIcon("dashboard"),
+        "Analyze performance bottlenecks and optimizations"
+      ),
+      new ActionNode(
+        "🏗️ Architecture Review",
+        {
+          command: "reviewer.generateArchitectureReview",
+          title: "Generate Architecture Review",
+        },
+        new vscode.ThemeIcon("organization"),
+        "Review design patterns and code structure"
       ),
       new ActionNode(
         "Setup API Keys",

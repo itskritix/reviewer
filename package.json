@@ -78,6 +78,42 @@
         "icon": "$(hubot)"
       },
       {
+        "command": "reviewer.generateComprehensiveReview",
+        "title": "Generate Comprehensive Review",
+        "category": "Reviewer",
+        "icon": "$(checklist)"
+      },
+      {
+        "command": "reviewer.generateSecurityReview",
+        "title": "Generate Security Review",
+        "category": "Reviewer",
+        "icon": "$(shield)"
+      },
+      {
+        "command": "reviewer.generatePerformanceReview",
+        "title": "Generate Performance Review",
+        "category": "Reviewer",
+        "icon": "$(dashboard)"
+      },
+      {
+        "command": "reviewer.generateArchitectureReview",
+        "title": "Generate Architecture Review",
+        "category": "Reviewer",
+        "icon": "$(organization)"
+      },
+      {
+        "command": "reviewer.generateTestingReview",
+        "title": "Generate Testing Review",
+        "category": "Reviewer",
+        "icon": "$(beaker)"
+      },
+      {
+        "command": "reviewer.generateDocumentationReview",
+        "title": "Generate Documentation Review",
+        "category": "Reviewer",
+        "icon": "$(book)"
+      },
+      {
         "command": "reviewer.clearApiKey",
         "title": "Clear API Keys",
         "category": "Reviewer"

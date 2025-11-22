@@ -14,6 +14,15 @@ import { ConfigurationProvider } from "./views/ConfigurationProvider";
 // Import enhanced prompt system
 import { PromptManager, ProjectContext, ReviewFocus, ReviewDepth } from "./prompts/PromptManager";
 
+// Review type selection interface
+interface ReviewTypeOption {
+  label: string;
+  description: string;
+  focus: ReviewFocus;
+  depth: ReviewDepth;
+  icon: string;
+}
+
 // Import CI integration
 import { CIIntegration } from "./integrations/CIIntegration";
 
@@ -727,13 +736,24 @@ async function generateEnhancedPrompt(
       }
     };
 
-    // Auto-detect optimal review configuration if not specified
-    if (reviewFocus === 'comprehensive' && reviewDepth === 'standard') {
-      const autoConfig = promptManager.autoDetectReviewConfig(projectContext);
-      reviewFocus = autoConfig.suggestedFocus[0] || 'general';
-      reviewDepth = autoConfig.suggestedDepth;
+    // For general AI review, use comprehensive review instead of auto-detection
+    // Auto-detection is useful for specialized CI/CD workflows, but for manual reviews
+    // users typically want a comprehensive analysis covering all areas
+    if (reviewFocus === 'comprehensive') {
+      // Keep comprehensive focus for full end-to-end review
+      reviewFocus = 'comprehensive';
 
-      log(`Auto-detected review config: ${reviewFocus} focus, ${reviewDepth} depth. Reasoning: ${autoConfig.reasoning}`);
+      // Auto-detect depth based on change size
+      const totalChanges = linesAdded + linesDeleted;
+      if (totalChanges > 500) {
+        reviewDepth = 'deep';
+      } else if (totalChanges > 100) {
+        reviewDepth = 'standard';
+      } else {
+        reviewDepth = 'surface';
+      }
+
+      log(`Using comprehensive review config: ${reviewFocus} focus, ${reviewDepth} depth. Change size: ${totalChanges} lines`);
     }
 
     // Get the git diff content
@@ -1107,14 +1127,127 @@ async function generateComprehensiveDiff() {
   );
 }
 
+// ============================================================================
+// REVIEW TYPE SELECTION
+// ============================================================================
+
+async function selectReviewType(): Promise<ReviewTypeOption | undefined> {
+  const reviewOptions: ReviewTypeOption[] = [
+    {
+      label: "🔍 Comprehensive Review",
+      description: "Complete analysis covering all areas (Security, Performance, Architecture, Testing, Documentation)",
+      focus: 'comprehensive',
+      depth: 'standard',
+      icon: "$(checklist)"
+    },
+    {
+      label: "🌊 Deep Comprehensive Review",
+      description: "Thorough, detailed analysis of all aspects - best for complex changes",
+      focus: 'comprehensive',
+      depth: 'deep',
+      icon: "$(search)"
+    },
+    {
+      label: "🛡️ Security Review",
+      description: "Focus on vulnerabilities, authentication, authorization, and security best practices",
+      focus: 'security',
+      depth: 'standard',
+      icon: "$(shield)"
+    },
+    {
+      label: "⚡ Performance Review",
+      description: "Analyze algorithms, bottlenecks, memory usage, and optimization opportunities",
+      focus: 'performance',
+      depth: 'standard',
+      icon: "$(dashboard)"
+    },
+    {
+      label: "🏗️ Architecture Review",
+      description: "Evaluate design patterns, code structure, and maintainability",
+      focus: 'architecture',
+      depth: 'standard',
+      icon: "$(organization)"
+    },
+    {
+      label: "🧪 Testing Review",
+      description: "Identify missing tests, improve coverage, and enhance testing strategies",
+      focus: 'testing',
+      depth: 'standard',
+      icon: "$(beaker)"
+    },
+    {
+      label: "📚 Documentation Review",
+      description: "Review code documentation, comments, and API documentation quality",
+      focus: 'documentation',
+      depth: 'standard',
+      icon: "$(book)"
+    },
+    {
+      label: "🚀 Quick Surface Review",
+      description: "Fast overview of obvious issues and quick wins",
+      focus: 'comprehensive',
+      depth: 'surface',
+      icon: "$(rocket)"
+    }
+  ];
+
+  const selectedOption = await vscode.window.showQuickPick(reviewOptions, {
+    placeHolder: "Choose the type of AI code review you want to generate",
+    matchOnDescription: true,
+    ignoreFocusOut: false
+  });
+
+  return selectedOption;
+}
+
+// ============================================================================
+// SPECIFIC REVIEW TYPE FUNCTIONS
+// ============================================================================
+
+async function generateComprehensiveReview(context: vscode.ExtensionContext) {
+  await generateSpecificReview(context, 'comprehensive', 'standard');
+}
+
+async function generateSecurityReview(context: vscode.ExtensionContext) {
+  await generateSpecificReview(context, 'security', 'standard');
+}
+
+async function generatePerformanceReview(context: vscode.ExtensionContext) {
+  await generateSpecificReview(context, 'performance', 'standard');
+}
+
+async function generateArchitectureReview(context: vscode.ExtensionContext) {
+  await generateSpecificReview(context, 'architecture', 'standard');
+}
+
+async function generateTestingReview(context: vscode.ExtensionContext) {
+  await generateSpecificReview(context, 'testing', 'standard');
+}
+
+async function generateDocumentationReview(context: vscode.ExtensionContext) {
+  await generateSpecificReview(context, 'documentation', 'standard');
+}
+
 async function generateAIReview(context: vscode.ExtensionContext) {
+  // Show review type selection dialog
+  const selectedReviewType = await selectReviewType();
+  if (!selectedReviewType) {
+    log("AI review cancelled by user");
+    return;
+  }
+
+  // Generate review with selected type
+  await generateSpecificReview(context, selectedReviewType.focus, selectedReviewType.depth);
+}
+
+async function generateSpecificReview(context: vscode.ExtensionContext, reviewFocus: ReviewFocus, reviewDepth: ReviewDepth) {
   const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri?.fsPath;
   if (!workspacePath) {
     vscode.window.showErrorMessage("No workspace folder found");
     return;
   }
 
-  log("=== Starting AI Review Generation ===");
+  log(`=== Starting ${reviewFocus} ${reviewDepth} AI Review ===`);
 
   // Check if git repository
   if (!(await isGitRepository(workspacePath))) {
@@ -1234,7 +1367,7 @@ async function generateAIReview(context: vscode.ExtensionContext) {
           return;
         }
 
-        // Generate enhanced prompt
+        // Generate enhanced prompt with selected focus and depth
         const prompt = config.customPrompt ||
           await generateEnhancedPrompt(
             workspacePath,
@@ -1242,7 +1375,9 @@ async function generateAIReview(context: vscode.ExtensionContext) {
             changedFiles,
             processedFiles.reduce((total, file) => total + (file.lineCount || 0), 0),
             0, // We don't track deleted lines in this context
-            config.customPrompt
+            config.customPrompt,
+            reviewFocus,
+            reviewDepth
           );
         const fullPrompt = `${prompt}\n\n${codeContent}`;
 
@@ -1458,6 +1593,49 @@ export function activate(context: vscode.ExtensionContext) {
     "reviewer.generateAIReview",
     async () => {
       await generateAIReview(context);
+    }
+  );
+
+  // Specific review type commands
+  const generateComprehensiveReviewCommand = vscode.commands.registerCommand(
+    "reviewer.generateComprehensiveReview",
+    async () => {
+      await generateComprehensiveReview(context);
+    }
+  );
+
+  const generateSecurityReviewCommand = vscode.commands.registerCommand(
+    "reviewer.generateSecurityReview",
+    async () => {
+      await generateSecurityReview(context);
+    }
+  );
+
+  const generatePerformanceReviewCommand = vscode.commands.registerCommand(
+    "reviewer.generatePerformanceReview",
+    async () => {
+      await generatePerformanceReview(context);
+    }
+  );
+
+  const generateArchitectureReviewCommand = vscode.commands.registerCommand(
+    "reviewer.generateArchitectureReview",
+    async () => {
+      await generateArchitectureReview(context);
+    }
+  );
+
+  const generateTestingReviewCommand = vscode.commands.registerCommand(
+    "reviewer.generateTestingReview",
+    async () => {
+      await generateTestingReview(context);
+    }
+  );
+
+  const generateDocumentationReviewCommand = vscode.commands.registerCommand(
+    "reviewer.generateDocumentationReview",
+    async () => {
+      await generateDocumentationReview(context);
     }
   );
 
@@ -1831,6 +2009,12 @@ ${stats.recentActivity.map((day: any) =>
   context.subscriptions.push(configurationView);
   context.subscriptions.push(generateComprehensiveDiffCommand);
   context.subscriptions.push(generateAIReviewCommand);
+  context.subscriptions.push(generateComprehensiveReviewCommand);
+  context.subscriptions.push(generateSecurityReviewCommand);
+  context.subscriptions.push(generatePerformanceReviewCommand);
+  context.subscriptions.push(generateArchitectureReviewCommand);
+  context.subscriptions.push(generateTestingReviewCommand);
+  context.subscriptions.push(generateDocumentationReviewCommand);
   context.subscriptions.push(clearApiKeyCommand);
   context.subscriptions.push(showLogsCommand);
   context.subscriptions.push(refreshQuickActionsCommand);
