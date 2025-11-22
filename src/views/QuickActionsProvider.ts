@@ -36,7 +36,7 @@ export class QuickActionsProvider implements vscode.TreeDataProvider<BaseNode> {
         "Create detailed diff report"
       ),
       new ActionNode(
-        "🔍 AI Review (Choose Type)",
+        "AI Review (Choose Type)",
         {
           command: "reviewer.generateAIReview",
           title: "Generate AI Review",
@@ -45,7 +45,7 @@ export class QuickActionsProvider implements vscode.TreeDataProvider<BaseNode> {
         "Get AI-powered code review with type selection"
       ),
       new ActionNode(
-        "🔍 Comprehensive Review",
+        "Comprehensive Review",
         {
           command: "reviewer.generateComprehensiveReview",
           title: "Generate Comprehensive Review",
@@ -54,7 +54,7 @@ export class QuickActionsProvider implements vscode.TreeDataProvider<BaseNode> {
         "Full analysis: Security, Performance, Architecture, Testing, Docs"
       ),
       new ActionNode(
-        "🛡️ Security Review",
+        "Security Review",
         {
           command: "reviewer.generateSecurityReview",
           title: "Generate Security Review",
@@ -63,7 +63,7 @@ export class QuickActionsProvider implements vscode.TreeDataProvider<BaseNode> {
         "Focus on security vulnerabilities and best practices"
       ),
       new ActionNode(
-        "⚡ Performance Review",
+        "Performance Review",
         {
           command: "reviewer.generatePerformanceReview",
           title: "Generate Performance Review",
@@ -72,7 +72,7 @@ export class QuickActionsProvider implements vscode.TreeDataProvider<BaseNode> {
         "Analyze performance bottlenecks and optimizations"
       ),
       new ActionNode(
-        "🏗️ Architecture Review",
+        "Architecture Review",
         {
           command: "reviewer.generateArchitectureReview",
           title: "Generate Architecture Review",

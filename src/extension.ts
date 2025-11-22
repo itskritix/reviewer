@@ -1134,56 +1134,56 @@ async function generateComprehensiveDiff() {
 async function selectReviewType(): Promise<ReviewTypeOption | undefined> {
   const reviewOptions: ReviewTypeOption[] = [
     {
-      label: "🔍 Comprehensive Review",
+      label: "Comprehensive Review",
       description: "Complete analysis covering all areas (Security, Performance, Architecture, Testing, Documentation)",
       focus: 'comprehensive',
       depth: 'standard',
       icon: "$(checklist)"
     },
     {
-      label: "🌊 Deep Comprehensive Review",
+      label: "Deep Comprehensive Review",
       description: "Thorough, detailed analysis of all aspects - best for complex changes",
       focus: 'comprehensive',
       depth: 'deep',
       icon: "$(search)"
     },
     {
-      label: "🛡️ Security Review",
+      label: "Security Review",
       description: "Focus on vulnerabilities, authentication, authorization, and security best practices",
       focus: 'security',
       depth: 'standard',
       icon: "$(shield)"
     },
     {
-      label: "⚡ Performance Review",
+      label: "Performance Review",
       description: "Analyze algorithms, bottlenecks, memory usage, and optimization opportunities",
       focus: 'performance',
       depth: 'standard',
       icon: "$(dashboard)"
     },
     {
-      label: "🏗️ Architecture Review",
+      label: "Architecture Review",
       description: "Evaluate design patterns, code structure, and maintainability",
       focus: 'architecture',
       depth: 'standard',
       icon: "$(organization)"
     },
     {
-      label: "🧪 Testing Review",
+      label: "Testing Review",
       description: "Identify missing tests, improve coverage, and enhance testing strategies",
       focus: 'testing',
       depth: 'standard',
       icon: "$(beaker)"
     },
     {
-      label: "📚 Documentation Review",
+      label: "Documentation Review",
       description: "Review code documentation, comments, and API documentation quality",
       focus: 'documentation',
       depth: 'standard',
       icon: "$(book)"
     },
     {
-      label: "🚀 Quick Surface Review",
+      label: "Quick Surface Review",
       description: "Fast overview of obvious issues and quick wins",
       focus: 'comprehensive',
       depth: 'surface',
